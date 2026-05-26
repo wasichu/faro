@@ -102,8 +102,7 @@ defmodule Faro.MixProject do
 				:elixir,
 				:otp,
 				:phoenix,
-				:ecto,
-				:ash
+        :ash
 			]
 		]
 	end
