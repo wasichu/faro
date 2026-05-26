@@ -46,7 +46,19 @@ config :spark,
 
 config :faro,
   ecto_repos: [Faro.Repo],
-  generators: [timestamp_type: :utc_datetime, binary_id: true]
+  generators: [timestamp_type: :utc_datetime, binary_id: true],
+  ash_domains: [
+    Faro.Accounts,
+    Faro.Wallets,
+    Faro.FaroGame,
+    Faro.Bitcoin,
+    Faro.Audit
+  ]
+
+config :faro, Oban,
+  engine: Oban.Engines.Basic,
+  repo: Faro.Repo,
+  queues: [default: 10]
 
 # Configures the endpoint
 config :faro, FaroWeb.Endpoint,

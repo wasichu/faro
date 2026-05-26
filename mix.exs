@@ -13,7 +13,7 @@ defmodule Faro.MixProject do
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
       consolidate_protocols: Mix.env() != :dev,
-			usage_rules: usage_rules()
+      usage_rules: usage_rules()
     ]
   end
 
@@ -44,6 +44,11 @@ defmodule Faro.MixProject do
     [
       {:sourceror, "~> 1.8", only: [:dev, :test]},
       {:ash, "~> 3.0"},
+      {:ash_postgres, "~> 2.0"},
+      {:ash_authentication, "~> 4.0"},
+      {:ash_authentication_phoenix, "~> 2.0"},
+      {:oban, "~> 2.0"},
+      {:stream_data, "~> 1.0"},
       {:usage_rules, "~> 1.0", only: [:dev]},
       {:phoenix, "~> 1.8.1"},
       {:phoenix_ecto, "~> 4.5"},
@@ -95,15 +100,15 @@ defmodule Faro.MixProject do
     ]
   end
 
-	defp usage_rules do
-		[
-			file: "AGENTS.md",
-			usage_rules: [
-				:elixir,
-				:otp,
-				:phoenix,
+  defp usage_rules do
+    [
+      file: "AGENTS.md",
+      usage_rules: [
+        :elixir,
+        :otp,
+        :phoenix,
         :ash
-			]
-		]
-	end
+      ]
+    ]
+  end
 end

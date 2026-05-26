@@ -21,6 +21,8 @@ config :faro, FaroWeb.Endpoint,
   secret_key_base: "sk6gjCvYOVWgnd28+yrF15v2x6aSNXWsr3ttYyzXLzlRzvAq5ArsShtXt3Ke2oLK",
   server: false
 
+config :faro, Oban, testing: :inline
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

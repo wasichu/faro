@@ -12,9 +12,7 @@ defmodule Faro.Application do
       Faro.Repo,
       {DNSCluster, query: Application.get_env(:faro, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Faro.PubSub},
-      # Start a worker by calling: Faro.Worker.start_link(arg)
-      # {Faro.Worker, arg},
-      # Start to serve requests, typically the last entry
+      {Oban, Application.fetch_env!(:faro, Oban)},
       FaroWeb.Endpoint
     ]
 
