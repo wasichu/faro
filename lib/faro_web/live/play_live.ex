@@ -158,6 +158,29 @@ defmodule FaroWeb.PlayLive do
      )}
   end
 
+  def handle_event("keep_bets", _params, socket) do
+    %{last_turn: last_turn, pending_bets: existing, balance: balance} = socket.assigns
+
+    restorable = Enum.reject(last_turn.bets, &match?(%CallTheTurnBet{}, &1))
+
+    {new_bets, new_balance} =
+      Enum.reduce(restorable, {existing, balance}, fn bet, {bets_acc, bal_acc} ->
+        already_placed? =
+          case bet do
+            %Bet{rank: rank} -> Enum.any?(bets_acc, &match?(%Bet{rank: ^rank}, &1))
+            %HighCardBet{} -> Enum.any?(bets_acc, &match?(%HighCardBet{}, &1))
+          end
+
+        if already_placed? or bet.amount > bal_acc do
+          {bets_acc, bal_acc}
+        else
+          {bets_acc ++ [bet], bal_acc - bet.amount}
+        end
+      end)
+
+    {:noreply, assign(socket, pending_bets: new_bets, balance: new_balance)}
+  end
+
   def handle_event("new_round", _params, socket) do
     {:noreply, start_round(socket, socket.assigns.nonce + 1, socket.assigns.balance)}
   end
@@ -334,16 +357,26 @@ defmodule FaroWeb.PlayLive do
         <%!-- Pending bets + Deal button --%>
         <%= if @round.phase != :finished do %>
           <div class="rounded-lg border border-stone-700 bg-stone-800 p-4">
-            <div class="mb-3 flex items-center justify-between">
+            <div class="mb-3 flex items-center justify-between gap-2">
               <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">
                 Pending Bets
               </h3>
-              <button
-                phx-click="deal_turn"
-                class="rounded border border-amber-600 bg-amber-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-950 transition-colors hover:bg-amber-600"
-              >
-                Deal Turn
-              </button>
+              <div class="flex items-center gap-2">
+                <%= if @last_turn && @round.phase != :call_the_turn do %>
+                  <button
+                    phx-click="keep_bets"
+                    class="rounded border border-stone-600 bg-stone-700 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+                  >
+                    Keep Last Bets
+                  </button>
+                <% end %>
+                <button
+                  phx-click="deal_turn"
+                  class="rounded border border-amber-600 bg-amber-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-950 transition-colors hover:bg-amber-600"
+                >
+                  Deal Turn
+                </button>
+              </div>
             </div>
             <%= if @pending_bets == [] do %>
               <p class="text-xs italic text-stone-500">
