@@ -1,7 +1,7 @@
 defmodule Faro.GameEngine.RoundTest do
   use ExUnit.Case, async: true
 
-  alias Faro.GameEngine.{Bet, Casekeeper, Deck, Fairness, Round, Shuffle}
+  alias Faro.GameEngine.{Bet, CallTheTurnBet, Casekeeper, Deck, Fairness, Round, Shuffle}
 
   defp shuffled_deck do
     seed = Fairness.derive_shuffle_seed("server_seed", "client_seed", 1)
@@ -86,6 +86,15 @@ defmodule Faro.GameEngine.RoundTest do
       {turn, _} = Round.deal_turn(round, [bet])
       assert turn.bets == [bet]
       assert length(turn.settlements) == 1
+    end
+
+    test "call-the-turn bets during :dealing phase are voided" do
+      round = Round.new(shuffled_deck())
+      ctt_bet = %CallTheTurnBet{predicted_loser: 1, predicted_winner: 2, amount: 100}
+      {turn, _} = Round.deal_turn(round, [ctt_bet])
+      [settlement] = turn.settlements
+      assert settlement.outcome == :void
+      assert settlement.net == 0
     end
 
     test "raises when round is :finished" do

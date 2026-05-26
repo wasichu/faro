@@ -40,6 +40,46 @@ defmodule Faro.GameEngine.AuditTest do
       nums = Enum.map(transcript.turns, & &1.turn_number)
       assert nums == Enum.to_list(1..25)
     end
+
+    test "captures all required fairness fields" do
+      transcript = build_transcript()
+      assert is_binary(transcript.server_commitment)
+      assert is_binary(transcript.server_seed)
+      assert transcript.client_seed == "player_client_seed"
+      assert transcript.nonce == 42
+      assert transcript.algorithm_version == "faro-shuffle-v1"
+      assert length(transcript.shuffled_deck) == 52
+      assert %Faro.GameEngine.Card{} = transcript.soda
+    end
+
+    test "records settlements on each turn entry" do
+      server_seed = Fairness.generate_server_seed()
+      client_seed = "cs"
+      nonce = 1
+      commitment = Fairness.commit_server_seed(server_seed)
+      shuffle_seed = Fairness.derive_shuffle_seed(server_seed, client_seed, nonce)
+      shuffled_deck = Shuffle.shuffle(Deck.new(), shuffle_seed)
+      round = Round.new(shuffled_deck)
+
+      alias Faro.GameEngine.Bet
+      [loser | _] = round.deck
+      bet = %Bet{rank: loser.rank, amount: 100}
+
+      {_, round_with_bet} = Round.deal_turn(round, [bet])
+
+      final =
+        Enum.reduce(1..24, round_with_bet, fn _, r ->
+          {_, r} = Round.deal_turn(r, [])
+          r
+        end)
+
+      transcript =
+        Audit.from_round(final, commitment, server_seed, client_seed, nonce, shuffled_deck)
+
+      first_turn = hd(transcript.turns)
+      assert length(first_turn.settlements) == 1
+      assert hd(first_turn.settlements).outcome in [:win, :loss, :split, :push]
+    end
   end
 
   describe "verify/1 — commitment check only" do
@@ -95,6 +135,29 @@ defmodule Faro.GameEngine.AuditTest do
       [turn | rest] = transcript.turns
       tampered_turn = %{turn | loser_rank: rem(turn.loser_rank, 13) + 1}
       tampered = %{transcript | turns: [tampered_turn | rest]}
+      result = Audit.verify_full(tampered)
+      refute result.verified?
+    end
+
+    test "fails when a turn's winner_rank is tampered" do
+      transcript = build_transcript()
+      [turn | rest] = transcript.turns
+      tampered_turn = %{turn | winner_rank: rem(turn.winner_rank, 13) + 1}
+      tampered = %{transcript | turns: [tampered_turn | rest]}
+      result = Audit.verify_full(tampered)
+      refute result.verified?
+    end
+
+    test "fails when client_seed is tampered" do
+      transcript = build_transcript()
+      tampered = %{transcript | client_seed: "tampered_client_seed"}
+      result = Audit.verify_full(tampered)
+      refute result.verified?
+    end
+
+    test "fails when nonce is tampered" do
+      transcript = build_transcript()
+      tampered = %{transcript | nonce: transcript.nonce + 1}
       result = Audit.verify_full(tampered)
       refute result.verified?
     end
