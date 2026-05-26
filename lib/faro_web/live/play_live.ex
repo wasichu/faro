@@ -242,7 +242,7 @@ defmodule FaroWeb.PlayLive do
           on_high_card_click={if @round.phase != :finished, do: "place_high_card_bet"}
         />
 
-        <%!-- Betting controls --%>
+        <%!-- Unified betting + action controls --%>
         <%= if @round.phase != :finished do %>
           <div class="flex flex-wrap items-center gap-3 rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
             <span class="text-xs uppercase tracking-widest text-stone-400">Bet</span>
@@ -282,7 +282,28 @@ defmodule FaroWeb.PlayLive do
             >
               {if @copper?, do: "Copper ON", else: "Copper OFF"}
             </button>
-            <span class="text-xs text-stone-500">← click a rank on the board or High Card bar</span>
+            <div class="flex-1" />
+            <%= if @round.phase == :dealing do %>
+              <button
+                phx-click="toggle_keep_bets"
+                class={[
+                  "rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                  if(@keep_bets?,
+                    do: "border-amber-600 bg-amber-900/60 text-amber-300 hover:bg-amber-900",
+                    else:
+                      "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200"
+                  )
+                ]}
+              >
+                {if @keep_bets?, do: "Keep Bets ✓", else: "Keep Bets"}
+              </button>
+            <% end %>
+            <button
+              phx-click="deal_turn"
+              class="rounded border border-amber-600 bg-amber-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-950 transition-colors hover:bg-amber-600"
+            >
+              Deal Turn
+            </button>
           </div>
         <% end %>
 
@@ -357,60 +378,26 @@ defmodule FaroWeb.PlayLive do
           </div>
         <% end %>
 
-        <%!-- Pending bets + Deal button --%>
-        <%= if @round.phase != :finished do %>
-          <div class="rounded-lg border border-stone-700 bg-stone-800 p-4">
-            <div class="mb-3 flex items-center justify-between gap-2">
-              <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">
-                Pending Bets
-              </h3>
-              <div class="flex items-center gap-2">
-                <%= if @round.phase == :dealing do %>
-                  <button
-                    phx-click="toggle_keep_bets"
-                    class={[
-                      "rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                      if(@keep_bets?,
-                        do: "border-amber-600 bg-amber-900/60 text-amber-300 hover:bg-amber-900",
-                        else:
-                          "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200"
-                      )
-                    ]}
-                  >
-                    {if @keep_bets?, do: "Keep Bets ✓", else: "Keep Bets"}
-                  </button>
-                <% end %>
-                <button
-                  phx-click="deal_turn"
-                  class="rounded border border-amber-600 bg-amber-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-950 transition-colors hover:bg-amber-600"
-                >
-                  Deal Turn
-                </button>
-              </div>
-            </div>
-            <%= if @pending_bets == [] do %>
-              <p class="text-xs italic text-stone-500">
-                No bets — click Deal Turn to advance without betting
-              </p>
-            <% else %>
-              <ul class="space-y-1.5">
-                <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
-                  <li class="flex items-center justify-between text-sm">
-                    <span class="text-stone-300">{pending_bet_label(bet)}</span>
-                    <div class="flex items-center gap-3">
-                      <span class="font-mono text-amber-400">{format_sats(bet.amount)} sats</span>
-                      <button
-                        phx-click="remove_bet"
-                        phx-value-index={idx}
-                        class="text-xs text-stone-500 transition-colors hover:text-red-400"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </li>
-                <% end %>
-              </ul>
-            <% end %>
+        <%!-- Pending bets --%>
+        <%= if @round.phase != :finished and @pending_bets != [] do %>
+          <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
+            <ul class="space-y-1.5">
+              <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
+                <li class="flex items-center justify-between text-sm">
+                  <span class="text-stone-300">{pending_bet_label(bet)}</span>
+                  <div class="flex items-center gap-3">
+                    <span class="font-mono text-amber-400">{format_sats(bet.amount)} sats</span>
+                    <button
+                      phx-click="remove_bet"
+                      phx-value-index={idx}
+                      class="text-xs text-stone-500 transition-colors hover:text-red-400"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </li>
+              <% end %>
+            </ul>
           </div>
         <% end %>
 
