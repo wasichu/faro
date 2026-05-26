@@ -133,6 +133,68 @@ defmodule Faro.GameEngine.SettlementTest do
       assert result.net == 0
       assert result.outcome == :push
     end
+
+    test "copper win: winner rank is lower (inverted)" do
+      result = Settlement.settle_high_card(%HighCardBet{amount: 100, copper?: true}, turn(9, 3))
+      assert result.net == 100
+      assert result.outcome == :win
+    end
+
+    test "copper loss: winner rank is higher (inverted)" do
+      result = Settlement.settle_high_card(%HighCardBet{amount: 100, copper?: true}, turn(3, 9))
+      assert result.net == -100
+      assert result.outcome == :loss
+    end
+
+    test "copper does not affect a doublet push" do
+      result = Settlement.settle_high_card(%HighCardBet{amount: 100, copper?: true}, turn(7, 7))
+      assert result.net == 0
+      assert result.outcome == :push
+    end
+  end
+
+  property "copper high card flips win to loss" do
+    check all(
+            loser_rank <- integer(1..12),
+            amount <- positive_integer()
+          ) do
+      winner_rank = loser_rank + 1
+
+      plain =
+        Settlement.settle_high_card(%HighCardBet{amount: amount}, turn(loser_rank, winner_rank))
+
+      coppered =
+        Settlement.settle_high_card(
+          %HighCardBet{amount: amount, copper?: true},
+          turn(loser_rank, winner_rank)
+        )
+
+      assert plain.outcome == :win
+      assert coppered.outcome == :loss
+      assert coppered.net == -amount
+    end
+  end
+
+  property "copper high card flips loss to win" do
+    check all(
+            winner_rank <- integer(1..12),
+            amount <- positive_integer()
+          ) do
+      loser_rank = winner_rank + 1
+
+      plain =
+        Settlement.settle_high_card(%HighCardBet{amount: amount}, turn(loser_rank, winner_rank))
+
+      coppered =
+        Settlement.settle_high_card(
+          %HighCardBet{amount: amount, copper?: true},
+          turn(loser_rank, winner_rank)
+        )
+
+      assert plain.outcome == :loss
+      assert coppered.outcome == :win
+      assert coppered.net == amount
+    end
   end
 
   property "high card win always nets +amount" do

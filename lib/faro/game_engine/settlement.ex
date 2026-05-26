@@ -36,12 +36,10 @@ defmodule Faro.GameEngine.Settlement do
   alias Faro.GameEngine.{Bet, CallTheTurnBet, HighCardBet, Turn, Card}
 
   @type outcome :: :win | :loss | :split | :push | :void
-  @type result :: %{bet: Bet.t(), net: integer(), outcome: outcome()}
-  @type ctt_result :: %{bet: CallTheTurnBet.t(), net: integer(), outcome: outcome()}
-  @type high_card_result :: %{bet: HighCardBet.t(), net: integer(), outcome: outcome()}
+  @type settlement_result :: %{bet: term(), net: integer(), outcome: outcome()}
 
   @doc "Resolves a list of standard bets against a completed turn."
-  @spec settle_bets([Bet.t()], Turn.t()) :: [result()]
+  @spec settle_bets([Bet.t()], Turn.t()) :: [settlement_result()]
   def settle_bets(bets, turn) do
     Enum.map(bets, &settle_one(&1, turn))
   end
@@ -52,7 +50,7 @@ defmodule Faro.GameEngine.Settlement do
   `remaining` must be a list of exactly three `Card.t()` values in
   dealing order: `[loser, winner, hock]`.
   """
-  @spec settle_call_the_turn_bets([CallTheTurnBet.t()], [Card.t()]) :: [ctt_result()]
+  @spec settle_call_the_turn_bets([CallTheTurnBet.t()], [Card.t()]) :: [settlement_result()]
   def settle_call_the_turn_bets(bets, remaining) do
     Enum.map(bets, &settle_call_the_turn(&1, remaining))
   end
@@ -62,7 +60,7 @@ defmodule Faro.GameEngine.Settlement do
 
   See module doc for payout rules.
   """
-  @spec settle_call_the_turn(CallTheTurnBet.t(), [Card.t()]) :: ctt_result()
+  @spec settle_call_the_turn(CallTheTurnBet.t(), [Card.t()]) :: settlement_result()
   def settle_call_the_turn(%CallTheTurnBet{} = bet, [loser, winner, hock]) do
     ranks = Enum.map([loser, winner, hock], & &1.rank)
     distinct_count = ranks |> Enum.uniq() |> length()
@@ -83,7 +81,7 @@ defmodule Faro.GameEngine.Settlement do
   end
 
   @doc "Resolves a list of high-card bets against a completed turn."
-  @spec settle_high_card_bets([HighCardBet.t()], Turn.t()) :: [high_card_result()]
+  @spec settle_high_card_bets([HighCardBet.t()], Turn.t()) :: [settlement_result()]
   def settle_high_card_bets(bets, turn) do
     Enum.map(bets, &settle_high_card(&1, turn))
   end
@@ -92,15 +90,18 @@ defmodule Faro.GameEngine.Settlement do
   Resolves a single high-card bet against a completed turn.
 
   Winner rank > loser rank → `:win`. Winner rank < loser rank → `:loss`.
-  Equal ranks (doublet) → `:push`.
+  Equal ranks (doublet) → `:push`. The `copper?` flag inverts win and loss.
   """
-  @spec settle_high_card(HighCardBet.t(), Turn.t()) :: high_card_result()
-  def settle_high_card(%HighCardBet{amount: amount} = bet, %Turn{loser: loser, winner: winner}) do
+  @spec settle_high_card(HighCardBet.t(), Turn.t()) :: settlement_result()
+  def settle_high_card(
+        %HighCardBet{amount: amount, copper?: copper?} = bet,
+        %Turn{loser: loser, winner: winner}
+      ) do
     {net, outcome} =
       cond do
-        winner.rank > loser.rank -> {amount, :win}
-        winner.rank < loser.rank -> {-amount, :loss}
-        true -> {0, :push}
+        winner.rank == loser.rank -> {0, :push}
+        winner.rank > loser.rank -> if copper?, do: {-amount, :loss}, else: {amount, :win}
+        true -> if copper?, do: {amount, :win}, else: {-amount, :loss}
       end
 
     %{bet: bet, net: net, outcome: outcome}
