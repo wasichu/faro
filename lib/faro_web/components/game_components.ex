@@ -8,7 +8,7 @@ defmodule FaroWeb.GameComponents do
   use Phoenix.Component
 
   @ranks 1..13
-  @board_top_row [13, 12, 11, 10, 9, 8, 7]
+  @board_top_row [13, 12, 11, 10, 9, 8]
   @board_bottom_row [1, 2, 3, 4, 5, 6]
 
   # ---------------------------------------------------------------------------
@@ -28,17 +28,22 @@ defmodule FaroWeb.GameComponents do
 
     ~H"""
     <div class="rounded-lg border-2 border-amber-700 bg-green-950 p-4 shadow-2xl">
-      <.high_card_bar bet={@high_card_bet} on_click={@on_high_card_click} />
+      <div class="mx-auto w-2/3">
+        <.high_card_bar bet={@high_card_bet} on_click={@on_high_card_click} />
+      </div>
+      <%!-- Single 7-col grid: top row (row 1), 7 alone in col 7 (row 2), bottom row (row 3) --%>
       <div class="mt-3 grid grid-cols-7 gap-2">
         <%= for rank <- @top_row do %>
           <.board_slot rank={rank} bet={Map.get(@bets, rank)} on_click={@on_rank_click} />
         <% end %>
-      </div>
-      <div class="mt-2 grid grid-cols-7 gap-2">
+        <div class="col-start-7 row-start-2">
+          <.board_slot rank={7} bet={Map.get(@bets, 7)} on_click={@on_rank_click} />
+        </div>
         <%= for rank <- @bottom_row do %>
-          <.board_slot rank={rank} bet={Map.get(@bets, rank)} on_click={@on_rank_click} />
+          <div class="row-start-3">
+            <.board_slot rank={rank} bet={Map.get(@bets, rank)} on_click={@on_rank_click} />
+          </div>
         <% end %>
-        <div />
       </div>
     </div>
     """
