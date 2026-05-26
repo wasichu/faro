@@ -25,6 +25,14 @@ defmodule FaroWeb.PlayLive do
     {:noreply, assign(socket, copper?: !socket.assigns.copper?)}
   end
 
+  def handle_event("double_amount", _params, socket) do
+    {:noreply, assign(socket, bet_amount: socket.assigns.bet_amount * 2)}
+  end
+
+  def handle_event("halve_amount", _params, socket) do
+    {:noreply, assign(socket, bet_amount: max(1, div(socket.assigns.bet_amount, 2)))}
+  end
+
   def handle_event("place_bet", %{"rank" => rank_str}, socket) do
     %{balance: balance, bet_amount: amount, copper?: copper?, pending_bets: bets, round: round} =
       socket.assigns
@@ -181,6 +189,11 @@ defmodule FaroWeb.PlayLive do
             </span>
             <span class="text-xs text-stone-400">Turn {@turn_number} / 25</span>
             <span class="text-xs text-stone-500">{@remaining} cards remain</span>
+            <span class="text-xs text-stone-600">·</span>
+            <span class="text-xs text-stone-500">Soda</span>
+            <span class={["font-mono text-sm font-bold", suit_color(@round.soda.suit)]}>
+              {rank_label(@round.soda.rank)}{suit_symbol(@round.soda.suit)}
+            </span>
           </div>
           <.balance_display balance_sats={@balance} />
         </div>
@@ -207,7 +220,13 @@ defmodule FaroWeb.PlayLive do
         <%= if @round.phase != :finished do %>
           <div class="flex flex-wrap items-center gap-3 rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
             <span class="text-xs uppercase tracking-widest text-stone-400">Bet</span>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5">
+              <button
+                phx-click="halve_amount"
+                class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+              >
+                ½
+              </button>
               <input
                 type="number"
                 min="1"
@@ -217,6 +236,12 @@ defmodule FaroWeb.PlayLive do
                 name="amount"
                 class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
               />
+              <button
+                phx-click="double_amount"
+                class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+              >
+                2×
+              </button>
               <span class="text-xs text-stone-500">sats</span>
             </div>
             <button
@@ -464,6 +489,11 @@ defmodule FaroWeb.PlayLive do
   defp suit_symbol(:hearts), do: "♥"
   defp suit_symbol(:diamonds), do: "♦"
   defp suit_symbol(:clubs), do: "♣"
+
+  defp suit_color(:hearts), do: "text-red-500"
+  defp suit_color(:diamonds), do: "text-red-500"
+  defp suit_color(:spades), do: "text-stone-200"
+  defp suit_color(:clubs), do: "text-stone-200"
 
   defp format_sats(n) when n >= 1_000_000 do
     m = div(n, 1_000_000)
