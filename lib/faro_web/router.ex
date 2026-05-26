@@ -17,7 +17,13 @@ defmodule FaroWeb.Router do
   scope "/", FaroWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live_session :default, layout: {FaroWeb.Layouts, :app} do
+      live "/", HomeLive
+      live "/play", PlayLive
+      live "/rules", RulesLive
+      live "/fairness", FairnessLive
+      live "/philosophy", PhilosophyLive
+    end
   end
 
   # Other scopes may use custom stacks.

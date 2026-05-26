@@ -26,47 +26,78 @@ defmodule FaroWeb.Layouts do
 
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
-
-  attr :current_scope, :map,
-    default: nil,
-    doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
-
-  slot :inner_block, required: true
+  attr :inner_content, :any, default: nil
+  attr :current_scope, :map, default: nil
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </header>
+    <div class="min-h-screen flex flex-col bg-stone-900 text-stone-100">
+      <header class="bg-stone-950 border-b border-amber-800/50 shadow-lg">
+        <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between h-14">
+            <.link
+              navigate={~p"/"}
+              class="text-amber-400 font-serif text-xl font-bold tracking-widest uppercase hover:text-amber-300 transition-colors"
+            >
+              Faro
+            </.link>
+            <ul class="hidden sm:flex items-center gap-6">
+              <li>
+                <.link
+                  navigate={~p"/"}
+                  class="text-stone-300 hover:text-amber-400 text-sm tracking-wide uppercase transition-colors"
+                >
+                  Home
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/play"}
+                  class="text-stone-300 hover:text-amber-400 text-sm tracking-wide uppercase transition-colors"
+                >
+                  Play
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/rules"}
+                  class="text-stone-300 hover:text-amber-400 text-sm tracking-wide uppercase transition-colors"
+                >
+                  Rules
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/fairness"}
+                  class="text-stone-300 hover:text-amber-400 text-sm tracking-wide uppercase transition-colors"
+                >
+                  Fairness
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/philosophy"}
+                  class="text-stone-300 hover:text-amber-400 text-sm tracking-wide uppercase transition-colors"
+                >
+                  Philosophy
+                </.link>
+              </li>
+            </ul>
+            <div class="flex items-center gap-3">
+              <span class="text-amber-400 text-sm font-mono">⚡ 1,000,000 sats</span>
+            </div>
+          </div>
+        </nav>
+      </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
+      <main class="flex-1">
+        {@inner_content}
+      </main>
+
+      <footer class="bg-stone-950 border-t border-amber-800/30 py-4 text-center text-stone-500 text-xs tracking-wide">
+        Provably fair · HMAC-SHA256 shuffle · All games verifiable on-chain
+      </footer>
+    </div>
 
     <.flash_group flash={@flash} />
     """

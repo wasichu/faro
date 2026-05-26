@@ -86,6 +86,7 @@ defmodule FaroWeb do
       import Phoenix.HTML
       # Core UI components
       import FaroWeb.CoreComponents
+      import FaroWeb.GameComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
