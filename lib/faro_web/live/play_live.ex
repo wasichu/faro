@@ -126,6 +126,7 @@ defmodule FaroWeb.PlayLive do
     %{
       round: round,
       pending_bets: bets,
+      keep_bets?: keep_bets?,
       shuffled_deck: shuffled_deck,
       server_seed: server_seed,
       commitment: commitment,
@@ -141,6 +142,26 @@ defmodule FaroWeb.PlayLive do
         acc + s.bet.amount + s.net
       end)
 
+    post_deal_balance = socket.assigns.balance + delta
+
+    # Auto-restore non-CTT bets if keep mode is on and the round continues normally
+    {restored_bets, final_balance, keep_bets?} =
+      if keep_bets? and new_round.phase == :dealing do
+        {bets, bal} =
+          Enum.reduce(completed_turn.bets, {[], post_deal_balance}, fn bet, {acc, bal} ->
+            if match?(%CallTheTurnBet{}, bet) or bet.amount > bal do
+              {acc, bal}
+            else
+              {acc ++ [bet], bal - bet.amount}
+            end
+          end)
+
+        {bets, bal, true}
+      else
+        # CTT phase reached — turn off keep mode automatically
+        {[], post_deal_balance, false}
+      end
+
     audit =
       if new_round.phase == :finished do
         Audit.from_round(new_round, commitment, server_seed, client_seed, nonce, shuffled_deck)
@@ -150,35 +171,17 @@ defmodule FaroWeb.PlayLive do
     {:noreply,
      assign(socket,
        round: new_round,
-       balance: socket.assigns.balance + delta,
-       pending_bets: [],
+       balance: final_balance,
+       pending_bets: restored_bets,
        last_turn: completed_turn,
        last_settlements: completed_turn.settlements,
+       keep_bets?: keep_bets?,
        audit: audit
      )}
   end
 
-  def handle_event("keep_bets", _params, socket) do
-    %{last_turn: last_turn, pending_bets: existing, balance: balance} = socket.assigns
-
-    restorable = Enum.reject(last_turn.bets, &match?(%CallTheTurnBet{}, &1))
-
-    {new_bets, new_balance} =
-      Enum.reduce(restorable, {existing, balance}, fn bet, {bets_acc, bal_acc} ->
-        already_placed? =
-          case bet do
-            %Bet{rank: rank} -> Enum.any?(bets_acc, &match?(%Bet{rank: ^rank}, &1))
-            %HighCardBet{} -> Enum.any?(bets_acc, &match?(%HighCardBet{}, &1))
-          end
-
-        if already_placed? or bet.amount > bal_acc do
-          {bets_acc, bal_acc}
-        else
-          {bets_acc ++ [bet], bal_acc - bet.amount}
-        end
-      end)
-
-    {:noreply, assign(socket, pending_bets: new_bets, balance: new_balance)}
+  def handle_event("toggle_keep_bets", _params, socket) do
+    {:noreply, assign(socket, keep_bets?: !socket.assigns.keep_bets?)}
   end
 
   def handle_event("new_round", _params, socket) do
@@ -362,12 +365,19 @@ defmodule FaroWeb.PlayLive do
                 Pending Bets
               </h3>
               <div class="flex items-center gap-2">
-                <%= if @last_turn && @round.phase != :call_the_turn do %>
+                <%= if @round.phase == :dealing do %>
                   <button
-                    phx-click="keep_bets"
-                    class="rounded border border-stone-600 bg-stone-700 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+                    phx-click="toggle_keep_bets"
+                    class={[
+                      "rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                      if(@keep_bets?,
+                        do: "border-amber-600 bg-amber-900/60 text-amber-300 hover:bg-amber-900",
+                        else:
+                          "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200"
+                      )
+                    ]}
                   >
-                    Keep Last Bets
+                    {if @keep_bets?, do: "Keep Bets ✓", else: "Keep Bets"}
                   </button>
                 <% end %>
                 <button
@@ -481,6 +491,7 @@ defmodule FaroWeb.PlayLive do
       last_settlements: [],
       bet_amount: @default_bet,
       copper?: false,
+      keep_bets?: Map.get(socket.assigns, :keep_bets?, false),
       ctt_loser: nil,
       ctt_winner: nil,
       ctt_amount: @default_bet,
