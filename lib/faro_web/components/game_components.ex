@@ -82,11 +82,13 @@ defmodule FaroWeb.GameComponents do
       phx-click={@on_click}
       phx-value-rank={@rank}
     >
-      <div class="relative flex h-14 w-10 flex-col items-center justify-between rounded border border-stone-400/30 bg-amber-50 px-1 py-0.5 shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:shadow-lg">
+      <div class="relative flex h-20 w-14 flex-col rounded border border-stone-400/30 bg-amber-50 px-1 py-0.5 shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:shadow-lg">
         <span class="self-start text-[10px] font-bold leading-none text-stone-800">
           {rank_label(@rank)}
         </span>
-        <span class="text-sm text-stone-800">♠</span>
+        <div class="relative flex-1 overflow-hidden">
+          <.card_inner rank={@rank} />
+        </div>
         <span class="self-end rotate-180 text-[10px] font-bold leading-none text-stone-800">
           {rank_label(@rank)}
         </span>
@@ -115,6 +117,41 @@ defmodule FaroWeb.GameComponents do
     ]}>
       <%= if @bet.copper? do %>
         <span class="text-[7px] font-bold text-orange-200">C</span>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :rank, :integer, required: true
+
+  defp card_inner(assigns) do
+    ~H"""
+    <div class="absolute inset-0">
+      <%= if @rank == 1 do %>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <span class="text-2xl leading-none text-stone-800">♠</span>
+        </div>
+      <% else %>
+        <%= if @rank >= 11 do %>
+          <div class="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+            <span class="font-serif text-lg font-bold leading-none text-stone-700">
+              {rank_label(@rank)}
+            </span>
+            <span class="text-[9px] leading-none text-stone-600">♠</span>
+          </div>
+        <% else %>
+          <%= for {x, y, rot} <- pip_positions(@rank) do %>
+            <span
+              class={[
+                "absolute text-[7px] leading-none text-stone-800 -translate-x-1/2 -translate-y-1/2",
+                if(rot, do: "rotate-180")
+              ]}
+              style={"left: #{x}%; top: #{y}%"}
+            >
+              ♠
+            </span>
+          <% end %>
+        <% end %>
       <% end %>
     </div>
     """
@@ -455,17 +492,87 @@ defmodule FaroWeb.GameComponents do
   defp suit_color(:spades), do: "text-stone-900"
   defp suit_color(:clubs), do: "text-stone-900"
 
-  defp format_sats(n) when n >= 1_000_000 do
+  # {x_pct, y_pct, rotate?} — positions within the pip area (relative div)
+  defp pip_positions(2), do: [{50, 22, false}, {50, 78, true}]
+  defp pip_positions(3), do: [{50, 15, false}, {50, 50, false}, {50, 85, true}]
+  defp pip_positions(4), do: [{28, 22, false}, {72, 22, false}, {28, 78, true}, {72, 78, true}]
+
+  defp pip_positions(5),
+    do: [{28, 20, false}, {72, 20, false}, {50, 50, false}, {28, 80, true}, {72, 80, true}]
+
+  defp pip_positions(6),
+    do: [
+      {28, 18, false},
+      {72, 18, false},
+      {28, 50, false},
+      {72, 50, false},
+      {28, 82, true},
+      {72, 82, true}
+    ]
+
+  defp pip_positions(7),
+    do: [
+      {28, 15, false},
+      {72, 15, false},
+      {50, 32, false},
+      {28, 50, false},
+      {72, 50, false},
+      {28, 85, true},
+      {72, 85, true}
+    ]
+
+  defp pip_positions(8),
+    do: [
+      {28, 15, false},
+      {72, 15, false},
+      {50, 32, false},
+      {28, 50, false},
+      {72, 50, false},
+      {50, 68, true},
+      {28, 85, true},
+      {72, 85, true}
+    ]
+
+  defp pip_positions(9),
+    do: [
+      {28, 12, false},
+      {72, 12, false},
+      {28, 33, false},
+      {72, 33, false},
+      {50, 50, false},
+      {28, 67, true},
+      {72, 67, true},
+      {28, 88, true},
+      {72, 88, true}
+    ]
+
+  defp pip_positions(10),
+    do: [
+      {28, 10, false},
+      {72, 10, false},
+      {50, 26, false},
+      {28, 40, false},
+      {72, 40, false},
+      {28, 60, true},
+      {72, 60, true},
+      {50, 74, true},
+      {28, 90, true},
+      {72, 90, true}
+    ]
+
+  def format_sats(n) when n < 0, do: "-" <> format_sats(-n)
+
+  def format_sats(n) when n >= 1_000_000 do
     m = div(n, 1_000_000)
     rem = div(rem(n, 1_000_000), 1_000)
     if rem == 0, do: "#{m}M", else: "#{m}.#{String.pad_leading("#{rem}", 3, "0")}M"
   end
 
-  defp format_sats(n) when n >= 1_000 do
+  def format_sats(n) when n >= 1_000 do
     "#{div(n, 1_000)},#{String.pad_leading("#{rem(n, 1_000)}", 3, "0")}"
   end
 
-  defp format_sats(n), do: Integer.to_string(n)
+  def format_sats(n), do: Integer.to_string(n)
 
   defp settlement_label(%{rank: rank, copper?: copper?}) do
     flag = if copper?, do: " (copper)", else: ""
@@ -473,7 +580,7 @@ defmodule FaroWeb.GameComponents do
   end
 
   defp settlement_label(%{predicted_loser: l, predicted_winner: w}) do
-    "CTT #{rank_label(l)} → #{rank_label(w)}"
+    "Call the Turn: Banker #{rank_label(l)} → Player #{rank_label(w)}"
   end
 
   defp settlement_label(%{copper?: copper?}) do

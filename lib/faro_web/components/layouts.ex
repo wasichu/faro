@@ -84,7 +84,9 @@ defmodule FaroWeb.Layouts do
               </li>
             </ul>
             <div class="flex items-center gap-3">
-              <span class="text-amber-400 text-sm font-mono">⚡ 1,000,000 sats</span>
+              <%= if b = assigns[:balance] do %>
+                <span class="text-amber-400 text-sm font-mono">⚡ {format_sats(b)} sats</span>
+              <% end %>
             </div>
           </div>
         </nav>
