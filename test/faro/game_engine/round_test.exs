@@ -1,7 +1,7 @@
 defmodule Faro.GameEngine.RoundTest do
   use ExUnit.Case, async: true
 
-  alias Faro.GameEngine.{Bet, CallTheTurnBet, Casekeeper, Deck, Fairness, Round, Shuffle}
+  alias Faro.GameEngine.{Bet, CallTheTurnBet, Card, Casekeeper, Deck, Fairness, Round, Shuffle}
 
   defp shuffled_deck do
     seed = Fairness.derive_shuffle_seed("server_seed", "client_seed", 1)
@@ -148,6 +148,78 @@ defmodule Faro.GameEngine.RoundTest do
         end)
 
       assert %Faro.GameEngine.Card{} = Round.hock(finished)
+    end
+  end
+
+  describe "doublet — only the matching rank is penalised" do
+    # Build a deterministic deck where turn 1 is always Q♠ / Q♥ (a doublet).
+    # Remaining 49 slots are filled with every other card so the deck is valid.
+    setup do
+      c = fn rank, suit -> %Card{rank: rank, suit: suit} end
+      soda = c.(2, :clubs)
+      loser = c.(12, :spades)
+      winner = c.(12, :hearts)
+
+      filler =
+        for suit <- [:spades, :hearts, :diamonds, :clubs],
+            rank <- 1..13,
+            not (rank == 12 and suit == :spades),
+            not (rank == 12 and suit == :hearts),
+            not (rank == 2 and suit == :clubs) do
+          c.(rank, suit)
+        end
+
+      {:ok, round: Round.new([soda, loser, winner | filler])}
+    end
+
+    test "bet on the doublet rank loses half", %{round: round} do
+      bets = [%Bet{rank: 12, amount: 100}]
+      {turn, _} = Round.deal_turn(round, bets)
+      [s] = turn.settlements
+      assert s.outcome == :split
+      assert s.net == -50
+    end
+
+    test "unrelated standard bet is unaffected", %{round: round} do
+      bets = [%Bet{rank: 7, amount: 100}]
+      {turn, _} = Round.deal_turn(round, bets)
+      [s] = turn.settlements
+      assert s.outcome == :push
+      assert s.net == 0
+    end
+
+    test "unrelated copper bet is unaffected", %{round: round} do
+      bets = [%Bet{rank: 7, amount: 100, copper?: true}]
+      {turn, _} = Round.deal_turn(round, bets)
+      [s] = turn.settlements
+      assert s.outcome == :push
+      assert s.net == 0
+    end
+
+    test "copper bet on the doublet rank also loses half", %{round: round} do
+      bets = [%Bet{rank: 12, amount: 100, copper?: true}]
+      {turn, _} = Round.deal_turn(round, bets)
+      [s] = turn.settlements
+      assert s.outcome == :split
+      assert s.net == -50
+    end
+
+    test "mixed bets: only the Queen bet is split", %{round: round} do
+      bets = [
+        %Bet{rank: 12, amount: 100},
+        %Bet{rank: 7, amount: 100},
+        %Bet{rank: 1, amount: 100}
+      ]
+
+      {turn, _} = Round.deal_turn(round, bets)
+      by_rank = Map.new(turn.settlements, &{&1.bet.rank, &1})
+
+      assert by_rank[12].outcome == :split
+      assert by_rank[12].net == -50
+      assert by_rank[7].outcome == :push
+      assert by_rank[7].net == 0
+      assert by_rank[1].outcome == :push
+      assert by_rank[1].net == 0
     end
   end
 
