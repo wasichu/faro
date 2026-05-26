@@ -82,17 +82,11 @@ defmodule FaroWeb.GameComponents do
       phx-click={@on_click}
       phx-value-rank={@rank}
     >
-      <div class="relative flex h-20 w-14 flex-col rounded border border-stone-400/30 bg-amber-50 px-1 py-0.5 shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:shadow-lg">
-        <span class="self-start text-[10px] font-bold leading-none text-stone-800">
-          {rank_label(@rank)}
-        </span>
-        <div class="relative flex-1 overflow-hidden">
-          <.card_inner rank={@rank} />
-        </div>
-        <span class="self-end rotate-180 text-[10px] font-bold leading-none text-stone-800">
-          {rank_label(@rank)}
-        </span>
-      </div>
+      <img
+        src={card_path(@rank, :spades)}
+        alt={rank_label(@rank)}
+        class="h-20 w-14 drop-shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:drop-shadow-lg"
+      />
       <div class="h-4 flex items-center justify-center">
         <%= if @bet do %>
           <.bet_marker bet={@bet} />
@@ -122,41 +116,6 @@ defmodule FaroWeb.GameComponents do
     """
   end
 
-  attr :rank, :integer, required: true
-
-  defp card_inner(assigns) do
-    ~H"""
-    <div class="absolute inset-0">
-      <%= if @rank == 1 do %>
-        <div class="absolute inset-0 flex items-center justify-center">
-          <span class="text-2xl leading-none text-stone-800">♠</span>
-        </div>
-      <% else %>
-        <%= if @rank >= 11 do %>
-          <div class="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-            <span class="font-serif text-lg font-bold leading-none text-stone-700">
-              {rank_label(@rank)}
-            </span>
-            <span class="text-[9px] leading-none text-stone-600">♠</span>
-          </div>
-        <% else %>
-          <%= for {x, y, rot} <- pip_positions(@rank) do %>
-            <span
-              class={[
-                "absolute text-[7px] leading-none text-stone-800 -translate-x-1/2 -translate-y-1/2",
-                if(rot, do: "rotate-180")
-              ]}
-              style={"left: #{x}%; top: #{y}%"}
-            >
-              ♠
-            </span>
-          <% end %>
-        <% end %>
-      <% end %>
-    </div>
-    """
-  end
-
   # ---------------------------------------------------------------------------
   # Playing Card (displayed face-up in the current turn area)
   # ---------------------------------------------------------------------------
@@ -171,28 +130,18 @@ defmodule FaroWeb.GameComponents do
       <%= if @label do %>
         <span class="text-xs uppercase tracking-widest text-stone-400">{@label}</span>
       <% end %>
-      <div class="relative flex h-24 w-16 flex-col items-start justify-between rounded-lg border border-stone-300 bg-amber-50 p-1.5 shadow-lg">
-        <div class={["text-sm font-bold leading-none", suit_color(@suit)]}>
-          <div>{rank_label(@rank)}</div>
-          <div>{suit_symbol(@suit)}</div>
-        </div>
-        <div class={["self-center text-2xl leading-none", suit_color(@suit)]}>
-          {suit_symbol(@suit)}
-        </div>
-        <div class={["rotate-180 self-end text-sm font-bold leading-none", suit_color(@suit)]}>
-          <div>{rank_label(@rank)}</div>
-          <div>{suit_symbol(@suit)}</div>
-        </div>
-      </div>
+      <img
+        src={card_path(@rank, @suit)}
+        alt={card_alt(@rank, @suit)}
+        class="h-24 w-16 drop-shadow-lg"
+      />
     </div>
     """
   end
 
   def card_back(assigns) do
     ~H"""
-    <div class="flex h-24 w-16 items-center justify-center rounded-lg border border-stone-600 bg-green-900 shadow-lg">
-      <span class="text-2xl text-amber-600/60">✦</span>
-    </div>
+    <img src={card_back_path()} alt="card back" class="h-24 w-16 drop-shadow-md" />
     """
   end
 
@@ -492,73 +441,19 @@ defmodule FaroWeb.GameComponents do
   defp suit_color(:spades), do: "text-stone-900"
   defp suit_color(:clubs), do: "text-stone-900"
 
-  # {x_pct, y_pct, rotate?} — positions within the pip area (relative div)
-  defp pip_positions(2), do: [{50, 22, false}, {50, 78, true}]
-  defp pip_positions(3), do: [{50, 15, false}, {50, 50, false}, {50, 85, true}]
-  defp pip_positions(4), do: [{28, 22, false}, {72, 22, false}, {28, 78, true}, {72, 78, true}]
+  # ---- Card asset paths ----
 
-  defp pip_positions(5),
-    do: [{28, 20, false}, {72, 20, false}, {50, 50, false}, {28, 80, true}, {72, 80, true}]
+  def card_path(rank, suit), do: "/images/cards/#{card_rank_name(rank)}_#{suit}.svg"
+  def card_back_path, do: "/images/cards/back.svg"
 
-  defp pip_positions(6),
-    do: [
-      {28, 18, false},
-      {72, 18, false},
-      {28, 50, false},
-      {72, 50, false},
-      {28, 82, true},
-      {72, 82, true}
-    ]
+  defp card_rank_name(1), do: "ace"
+  defp card_rank_name(11), do: "jack"
+  defp card_rank_name(12), do: "queen"
+  defp card_rank_name(13), do: "king"
+  defp card_rank_name(n), do: Integer.to_string(n)
 
-  defp pip_positions(7),
-    do: [
-      {28, 15, false},
-      {72, 15, false},
-      {50, 32, false},
-      {28, 50, false},
-      {72, 50, false},
-      {28, 85, true},
-      {72, 85, true}
-    ]
-
-  defp pip_positions(8),
-    do: [
-      {28, 15, false},
-      {72, 15, false},
-      {50, 32, false},
-      {28, 50, false},
-      {72, 50, false},
-      {50, 68, true},
-      {28, 85, true},
-      {72, 85, true}
-    ]
-
-  defp pip_positions(9),
-    do: [
-      {28, 12, false},
-      {72, 12, false},
-      {28, 33, false},
-      {72, 33, false},
-      {50, 50, false},
-      {28, 67, true},
-      {72, 67, true},
-      {28, 88, true},
-      {72, 88, true}
-    ]
-
-  defp pip_positions(10),
-    do: [
-      {28, 10, false},
-      {72, 10, false},
-      {50, 26, false},
-      {28, 40, false},
-      {72, 40, false},
-      {28, 60, true},
-      {72, 60, true},
-      {50, 74, true},
-      {28, 90, true},
-      {72, 90, true}
-    ]
+  defp card_alt(rank, suit),
+    do: "#{rank_label(rank)} of #{suit |> to_string() |> String.capitalize()}"
 
   def format_sats(n) when n < 0, do: "-" <> format_sats(-n)
 

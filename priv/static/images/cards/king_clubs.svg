@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280">
+  <rect width="200" height="280" rx="12" fill="#FEFCE8" stroke="#D6D3D1" stroke-width="1.5"/>
+  <text x="15" y="28" font-family="Georgia,serif" font-size="22" font-weight="bold" fill="#292524" text-anchor="middle">K</text>
+<text x="15" y="46" font-family="Georgia,serif" font-size="16" fill="#292524" text-anchor="middle">♣</text>
+<g transform="rotate(180,100,140)">
+  <text x="15" y="28" font-family="Georgia,serif" font-size="22" font-weight="bold" fill="#292524" text-anchor="middle">K</text>
+  <text x="15" y="46" font-family="Georgia,serif" font-size="16" fill="#292524" text-anchor="middle">♣</text>
+</g>
+
+  <rect x="58" y="80" width="84" height="120" rx="6" fill="none" stroke="#292524" stroke-width="1" opacity="0.25"/>
+<text x="100" y="136" font-family="Georgia,serif" font-size="62" font-weight="bold" fill="#292524" text-anchor="middle" dominant-baseline="central" opacity="0.9">K</text>
+<text x="100" y="180" font-family="Georgia,serif" font-size="22" fill="#292524" text-anchor="middle" dominant-baseline="central">♣</text>
+
+</svg>
