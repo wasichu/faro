@@ -77,6 +77,32 @@ defmodule Faro.GameEngine.SettlementTest do
     end
   end
 
+  describe "settle/2 — doublet isolation" do
+    test "doublet affects matching rank only" do
+      [result] = Settlement.settle_bets([bet(5, 100)], turn(5, 5))
+      assert result.net == -50
+      assert result.outcome == :split
+    end
+
+    test "doublet does not affect unrelated standard bet" do
+      [result] = Settlement.settle_bets([bet(7, 100)], turn(5, 5))
+      assert result.net == 0
+      assert result.outcome == :push
+    end
+
+    test "doublet does not affect unrelated copper bet" do
+      [result] = Settlement.settle_bets([bet(7, 100, true)], turn(5, 5))
+      assert result.net == 0
+      assert result.outcome == :push
+    end
+
+    test "matching copper bet also loses half on doublet" do
+      [result] = Settlement.settle_bets([bet(5, 100, true)], turn(5, 5))
+      assert result.net == -50
+      assert result.outcome == :split
+    end
+  end
+
   describe "settle_call_the_turn/2" do
     test "void when all three cards are the same rank" do
       cards = [card(5), card(5, :hearts), card(5, :diamonds)]
