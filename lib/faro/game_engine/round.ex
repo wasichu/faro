@@ -75,20 +75,7 @@ defmodule Faro.GameEngine.Round do
     index = length(turns) + 1
     turn = Turn.new(index, loser, winner)
 
-    {ctt_bets, remaining_bets} = Enum.split_with(bets, &match?(%CallTheTurnBet{}, &1))
-    {hc_bets, std_bets} = Enum.split_with(remaining_bets, &match?(%HighCardBet{}, &1))
-
-    std_results = Settlement.settle(std_bets, turn)
-    hc_results = Settlement.settle_high_card_bets(hc_bets, turn)
-
-    ctt_results =
-      if phase == :call_the_turn do
-        Settlement.settle_call_the_turn_bets(ctt_bets, [loser, winner | rest])
-      else
-        Enum.map(ctt_bets, &%{bet: &1, net: 0, outcome: :void})
-      end
-
-    all_settlements = std_results ++ hc_results ++ ctt_results
+    all_settlements = settle_all(bets, turn, phase, [loser, winner | rest])
     completed_turn = %{turn | bets: bets, settlements: all_settlements}
 
     new_ck = Casekeeper.record(ck, turn)
@@ -117,6 +104,22 @@ defmodule Faro.GameEngine.Round do
   @spec hock(t()) :: Card.t() | nil
   def hock(%__MODULE__{phase: :finished, deck: [card]}), do: card
   def hock(%__MODULE__{}), do: nil
+
+  defp settle_all(bets, turn, phase, remaining_cards) do
+    {ctt_bets, rest} = Enum.split_with(bets, &match?(%CallTheTurnBet{}, &1))
+    {hc_bets, std_bets} = Enum.split_with(rest, &match?(%HighCardBet{}, &1))
+
+    ctt_results =
+      if phase == :call_the_turn do
+        Settlement.settle_call_the_turn_bets(ctt_bets, remaining_cards)
+      else
+        Enum.map(ctt_bets, &%{bet: &1, net: 0, outcome: :void})
+      end
+
+    Settlement.settle_bets(std_bets, turn) ++
+      Settlement.settle_high_card_bets(hc_bets, turn) ++
+      ctt_results
+  end
 
   defp detect_phase(remaining) when remaining >= 4, do: :dealing
   defp detect_phase(3), do: :call_the_turn

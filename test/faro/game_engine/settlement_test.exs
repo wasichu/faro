@@ -13,56 +13,56 @@ defmodule Faro.GameEngine.SettlementTest do
 
   describe "settle/2 — standard outcomes" do
     test "win: bet rank matches winner" do
-      [result] = Settlement.settle([bet(7, 100)], turn(3, 7))
+      [result] = Settlement.settle_bets([bet(7, 100)], turn(3, 7))
       assert result.net == 100
       assert result.outcome == :win
     end
 
     test "loss: bet rank matches loser" do
-      [result] = Settlement.settle([bet(3, 100)], turn(3, 7))
+      [result] = Settlement.settle_bets([bet(3, 100)], turn(3, 7))
       assert result.net == -100
       assert result.outcome == :loss
     end
 
     test "push: bet rank on neither card" do
-      [result] = Settlement.settle([bet(5, 100)], turn(3, 7))
+      [result] = Settlement.settle_bets([bet(5, 100)], turn(3, 7))
       assert result.net == 0
       assert result.outcome == :push
     end
 
     test "split: both cards same rank, loses half" do
-      [result] = Settlement.settle([bet(5, 100)], turn(5, 5))
+      [result] = Settlement.settle_bets([bet(5, 100)], turn(5, 5))
       assert result.net == -50
       assert result.outcome == :split
     end
 
     test "split with odd amount rounds toward zero" do
-      [result] = Settlement.settle([bet(5, 101)], turn(5, 5))
+      [result] = Settlement.settle_bets([bet(5, 101)], turn(5, 5))
       assert result.net == -50
     end
   end
 
   describe "settle/2 — copper bets" do
     test "copper win: rank matches loser (inverted)" do
-      [result] = Settlement.settle([bet(3, 100, true)], turn(3, 7))
+      [result] = Settlement.settle_bets([bet(3, 100, true)], turn(3, 7))
       assert result.net == 100
       assert result.outcome == :win
     end
 
     test "copper loss: rank matches winner (inverted)" do
-      [result] = Settlement.settle([bet(7, 100, true)], turn(3, 7))
+      [result] = Settlement.settle_bets([bet(7, 100, true)], turn(3, 7))
       assert result.net == -100
       assert result.outcome == :loss
     end
 
     test "copper does not affect a split" do
-      [result] = Settlement.settle([bet(5, 100, true)], turn(5, 5))
+      [result] = Settlement.settle_bets([bet(5, 100, true)], turn(5, 5))
       assert result.net == -50
       assert result.outcome == :split
     end
 
     test "copper does not affect a push" do
-      [result] = Settlement.settle([bet(9, 100, true)], turn(3, 7))
+      [result] = Settlement.settle_bets([bet(9, 100, true)], turn(3, 7))
       assert result.net == 0
       assert result.outcome == :push
     end
@@ -71,7 +71,7 @@ defmodule Faro.GameEngine.SettlementTest do
   describe "settle/2 — multiple bets" do
     test "settles all bets independently" do
       bets = [bet(7, 100), bet(3, 50), bet(5, 200)]
-      results = Settlement.settle(bets, turn(3, 7))
+      results = Settlement.settle_bets(bets, turn(3, 7))
       nets = Enum.map(results, & &1.net)
       assert nets == [100, -50, 0]
     end
@@ -171,7 +171,7 @@ defmodule Faro.GameEngine.SettlementTest do
             amount <- positive_integer()
           ) do
       other = if rank == 1, do: 2, else: 1
-      [result] = Settlement.settle([bet(rank, amount)], turn(other, rank))
+      [result] = Settlement.settle_bets([bet(rank, amount)], turn(other, rank))
       assert result.net == amount
     end
   end
@@ -182,7 +182,7 @@ defmodule Faro.GameEngine.SettlementTest do
             amount <- positive_integer()
           ) do
       other = if rank == 1, do: 2, else: 1
-      [result] = Settlement.settle([bet(rank, amount)], turn(rank, other))
+      [result] = Settlement.settle_bets([bet(rank, amount)], turn(rank, other))
       assert result.net == -amount
     end
   end
@@ -192,23 +192,38 @@ defmodule Faro.GameEngine.SettlementTest do
             rank <- integer(1..13),
             amount <- positive_integer()
           ) do
-      [result] = Settlement.settle([bet(rank, amount)], turn(rank, rank))
+      [result] = Settlement.settle_bets([bet(rank, amount)], turn(rank, rank))
       assert result.net == -div(amount, 2)
     end
   end
 
-  property "copper inverts win to loss and vice versa" do
+  property "copper flips a winning bet to a loss" do
     check all(
             rank <- integer(1..13),
             amount <- positive_integer()
           ) do
       other = if rank == 1, do: 2, else: 1
 
-      [win_result] = Settlement.settle([bet(rank, amount)], turn(other, rank))
-      [cop_result] = Settlement.settle([bet(rank, amount, true)], turn(other, rank))
+      [plain] = Settlement.settle_bets([bet(rank, amount)], turn(other, rank))
+      [coppered] = Settlement.settle_bets([bet(rank, amount, true)], turn(other, rank))
 
-      assert win_result.net == amount
-      assert cop_result.net == -amount
+      assert plain.net == amount
+      assert coppered.net == -amount
+    end
+  end
+
+  property "copper flips a losing bet to a win" do
+    check all(
+            rank <- integer(1..13),
+            amount <- positive_integer()
+          ) do
+      other = if rank == 1, do: 2, else: 1
+
+      [plain] = Settlement.settle_bets([bet(rank, amount)], turn(rank, other))
+      [coppered] = Settlement.settle_bets([bet(rank, amount, true)], turn(rank, other))
+
+      assert plain.net == -amount
+      assert coppered.net == amount
     end
   end
 

@@ -41,8 +41,8 @@ defmodule Faro.GameEngine.Settlement do
   @type high_card_result :: %{bet: HighCardBet.t(), net: integer(), outcome: outcome()}
 
   @doc "Resolves a list of standard bets against a completed turn."
-  @spec settle([Bet.t()], Turn.t()) :: [result()]
-  def settle(bets, turn) do
+  @spec settle_bets([Bet.t()], Turn.t()) :: [result()]
+  def settle_bets(bets, turn) do
     Enum.map(bets, &settle_one(&1, turn))
   end
 

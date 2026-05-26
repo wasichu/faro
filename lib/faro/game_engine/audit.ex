@@ -138,6 +138,7 @@ defmodule Faro.GameEngine.Audit do
   end
 
   defp verify_cards(turns, deck) do
+    # deck[0] = soda; turn k: loser at 2k-1, winner at 2k
     Enum.all?(turns, fn %{turn_number: k, loser_rank: lr, winner_rank: wr} ->
       loser = Enum.at(deck, 2 * k - 1)
       winner = Enum.at(deck, 2 * k)
