@@ -17,8 +17,8 @@ defmodule FaroWeb.HomeLive do
         </p>
         <p class="mx-auto mt-6 max-w-2xl text-stone-300 leading-relaxed">
           Faro was the most popular card game in America from the 1820s through the early 1900s.
-          Simple rules, fast play, and the lowest house edge of any banking game made it the
-          choice of miners, gamblers, and frontier saloons alike.
+          When honestly dealt, faro offered players unusually favorable odds for a banking game,
+          helping make it the dominant gambling game of the American frontier.
         </p>
         <div class="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <.link

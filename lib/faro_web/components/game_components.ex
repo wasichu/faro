@@ -17,6 +17,8 @@ defmodule FaroWeb.GameComponents do
 
   attr :bets, :map, default: %{}
   attr :high_card_bet, :map, default: nil
+  attr :on_rank_click, :string, default: nil
+  attr :on_high_card_click, :string, default: nil
 
   def faro_board(assigns) do
     assigns =
@@ -26,15 +28,15 @@ defmodule FaroWeb.GameComponents do
 
     ~H"""
     <div class="rounded-lg border-2 border-amber-700 bg-green-950 p-4 shadow-2xl">
-      <.high_card_bar bet={@high_card_bet} />
+      <.high_card_bar bet={@high_card_bet} on_click={@on_high_card_click} />
       <div class="mt-3 grid grid-cols-7 gap-2">
         <%= for rank <- @top_row do %>
-          <.board_slot rank={rank} bet={Map.get(@bets, rank)} />
+          <.board_slot rank={rank} bet={Map.get(@bets, rank)} on_click={@on_rank_click} />
         <% end %>
       </div>
       <div class="mt-2 grid grid-cols-7 gap-2">
         <%= for rank <- @bottom_row do %>
-          <.board_slot rank={rank} bet={Map.get(@bets, rank)} />
+          <.board_slot rank={rank} bet={Map.get(@bets, rank)} on_click={@on_rank_click} />
         <% end %>
         <div />
       </div>
@@ -43,10 +45,17 @@ defmodule FaroWeb.GameComponents do
   end
 
   attr :bet, :map, default: nil
+  attr :on_click, :string, default: nil
 
   defp high_card_bar(assigns) do
     ~H"""
-    <div class="flex items-center justify-between rounded border border-amber-600/50 bg-green-900 px-4 py-2">
+    <div
+      class={[
+        "flex items-center justify-between rounded border border-amber-600/50 bg-green-900 px-4 py-2",
+        if(@on_click, do: "cursor-pointer hover:bg-green-800 transition-colors", else: "")
+      ]}
+      phx-click={@on_click}
+    >
       <span class="font-serif text-xs font-bold tracking-widest text-amber-400 uppercase">
         High Card
       </span>
@@ -64,10 +73,15 @@ defmodule FaroWeb.GameComponents do
 
   attr :rank, :integer, required: true
   attr :bet, :map, default: nil
+  attr :on_click, :string, default: nil
 
   defp board_slot(assigns) do
     ~H"""
-    <div class="flex flex-col items-center gap-1 cursor-pointer group">
+    <div
+      class="flex flex-col items-center gap-1 cursor-pointer group"
+      phx-click={@on_click}
+      phx-value-rank={@rank}
+    >
       <div class="relative flex h-14 w-10 flex-col items-center justify-between rounded border border-stone-400/30 bg-amber-50 px-1 py-0.5 shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:shadow-lg">
         <span class="self-start text-[10px] font-bold leading-none text-stone-800">
           {rank_label(@rank)}
@@ -343,6 +357,85 @@ defmodule FaroWeb.GameComponents do
   end
 
   # ---------------------------------------------------------------------------
+  # Settlement List
+  # ---------------------------------------------------------------------------
+
+  attr :settlements, :list, default: []
+
+  def settlement_list(assigns) do
+    ~H"""
+    <div class="rounded-lg border border-stone-700 bg-stone-800 p-4">
+      <h3 class="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+        Turn Settlements
+      </h3>
+      <%= if @settlements == [] do %>
+        <p class="text-xs italic text-stone-500">No bets were placed</p>
+      <% else %>
+        <ul class="space-y-1.5">
+          <%= for s <- @settlements do %>
+            <li class="flex items-center justify-between text-sm">
+              <span class="text-stone-300">{settlement_label(s.bet)}</span>
+              <span class={["font-mono font-semibold", outcome_color(s.outcome)]}>
+                {outcome_label(s.outcome, s.net)}
+              </span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+    """
+  end
+
+  # ---------------------------------------------------------------------------
+  # Audit Panel
+  # ---------------------------------------------------------------------------
+
+  attr :audit, :map, required: true
+
+  def audit_panel(assigns) do
+    ~H"""
+    <div class="rounded-lg border border-amber-700/50 bg-stone-900 p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">Audit Transcript</h3>
+        <span class={[
+          "rounded px-2 py-0.5 text-xs font-semibold",
+          if(@audit.verified?,
+            do: "bg-green-900 text-green-400",
+            else: "bg-red-900 text-red-400"
+          )
+        ]}>
+          {if @audit.verified?, do: "✓ Verified", else: "✗ Failed"}
+        </span>
+      </div>
+      <div class="space-y-2 text-xs font-mono">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-stone-500 font-sans">Algorithm</span>
+          <span class="text-amber-300 break-all">{@audit.algorithm_version}</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-stone-500 font-sans">Commitment (pre-game)</span>
+          <span class="text-stone-300 break-all">{@audit.server_commitment}</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-stone-500 font-sans">Server Seed (revealed)</span>
+          <span class="text-stone-300 break-all">
+            {Base.encode16(@audit.server_seed, case: :lower)}
+          </span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-stone-500 font-sans">Client Seed</span>
+          <span class="text-stone-300 break-all">{@audit.client_seed}</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-stone-500 font-sans">Nonce</span>
+          <span class="text-stone-300">{@audit.nonce}</span>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------
 
@@ -373,4 +466,30 @@ defmodule FaroWeb.GameComponents do
   end
 
   defp format_sats(n), do: Integer.to_string(n)
+
+  defp settlement_label(%{rank: rank, copper?: copper?}) do
+    flag = if copper?, do: " (copper)", else: ""
+    "Rank #{rank_label(rank)}#{flag}"
+  end
+
+  defp settlement_label(%{predicted_loser: l, predicted_winner: w}) do
+    "CTT #{rank_label(l)} → #{rank_label(w)}"
+  end
+
+  defp settlement_label(%{copper?: copper?}) do
+    flag = if copper?, do: " (copper)", else: ""
+    "High Card#{flag}"
+  end
+
+  defp outcome_color(:win), do: "text-green-400"
+  defp outcome_color(:loss), do: "text-red-400"
+  defp outcome_color(:push), do: "text-stone-400"
+  defp outcome_color(:split), do: "text-orange-400"
+  defp outcome_color(:void), do: "text-stone-500"
+
+  defp outcome_label(:win, net), do: "+#{format_sats(net)}"
+  defp outcome_label(:loss, net), do: "#{format_sats(net)}"
+  defp outcome_label(:push, _net), do: "push"
+  defp outcome_label(:split, net), do: "#{format_sats(net)}"
+  defp outcome_label(:void, _net), do: "void"
 end
