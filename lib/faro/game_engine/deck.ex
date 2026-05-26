@@ -2,9 +2,9 @@ defmodule Faro.GameEngine.Deck do
   @moduledoc """
   Represents a standard 52-card Faro deck (4 suits × 13 ranks).
 
-  In historical Faro, all four suits are present but only rank matters
-  for resolving bets. The deck module produces an ordered deck and
-  exposes operations needed by `Shuffle` and `Round`.
+  `new/0` returns an ordered, unshuffled deck. The ordering is
+  deterministic (suits outer, ranks inner) so audits can reproduce
+  the pre-shuffle state from scratch without storing it.
 
   Boundary: pure data transformation — no I/O, no process state.
   """
@@ -13,18 +13,19 @@ defmodule Faro.GameEngine.Deck do
 
   @type t :: [Card.t()]
 
-  @suits 1..4
-  @ranks 1..13
-
-  @doc "Returns a fresh, unshuffled 52-card deck."
+  @doc "Returns a fresh, ordered, unshuffled 52-card deck."
   @spec new() :: t()
   def new do
-    for _suit <- @suits, rank <- @ranks do
-      %Card{rank: rank}
+    for suit <- Card.suits(), rank <- Card.ranks() do
+      %Card{suit: suit, rank: rank}
     end
   end
 
-  @doc "Returns the number of cards remaining in the deck."
+  @doc "Returns the number of cards in the deck."
   @spec size(t()) :: non_neg_integer()
   def size(deck), do: length(deck)
+
+  @doc "Returns a list of serialized card strings, e.g. [\"As\", \"2s\", ...]."
+  @spec serialize(t()) :: [String.t()]
+  def serialize(deck), do: Enum.map(deck, &Card.serialize/1)
 end

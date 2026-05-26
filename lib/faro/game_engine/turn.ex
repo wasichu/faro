@@ -1,16 +1,19 @@
 defmodule Faro.GameEngine.Turn do
   @moduledoc """
-  Represents the outcome of a single Faro turn (one deal of two cards).
+  The complete record of a single Faro turn.
 
-  In Faro, each turn reveals two cards from the dealing box:
-    - The soda (loser card) — bets on this rank lose.
-    - The hock (winner card) — bets on this rank win.
+  A turn has four phases:
 
-  A split occurs when both cards share the same rank; the banker
-  takes half the bet on that rank.
+  1. **Betting** — players place `Bet` and/or `CallTheTurnBet` wagers.
+  2. **Deal** — two cards are revealed from the dealing box: the loser
+     (banker card) and the winner (player card).
+  3. **Settlement** — each bet is resolved against the dealt cards.
 
-  Turn is a pure data structure. Bet resolution is delegated to
-  `Settlement`.
+  A doublet (split) occurs when both cards share the same rank; the
+  banker takes half the stake on bets placed on that rank.
+
+  The `Turn` struct is immutable. `Round.deal_turn/2` constructs
+  completed turns; this module provides the constructor helpers.
 
   Boundary: pure data — no I/O, no process state.
   """
@@ -18,20 +21,23 @@ defmodule Faro.GameEngine.Turn do
   alias Faro.GameEngine.Card
 
   @type t :: %__MODULE__{
+          index: pos_integer(),
           loser: Card.t(),
           winner: Card.t(),
-          split?: boolean()
+          split?: boolean(),
+          bets: list(),
+          settlements: list()
         }
 
-  defstruct [:loser, :winner, split?: false]
+  defstruct [:index, :loser, :winner, split?: false, bets: [], settlements: []]
 
-  @doc "Builds a turn from the loser and winner cards dealt."
-  @spec new(Card.t(), Card.t()) :: t()
-  def new(%Card{rank: rank} = loser, %Card{rank: rank} = winner) do
-    %__MODULE__{loser: loser, winner: winner, split?: true}
+  @doc "Constructs a turn record from its index and dealt cards."
+  @spec new(pos_integer(), Card.t(), Card.t()) :: t()
+  def new(index, %Card{rank: rank} = loser, %Card{rank: rank} = winner) do
+    %__MODULE__{index: index, loser: loser, winner: winner, split?: true}
   end
 
-  def new(loser, winner) do
-    %__MODULE__{loser: loser, winner: winner, split?: false}
+  def new(index, loser, winner) do
+    %__MODULE__{index: index, loser: loser, winner: winner, split?: false}
   end
 end
