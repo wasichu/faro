@@ -289,92 +289,15 @@ defmodule FaroWeb.PlayLive do
           </span>
         </div>
 
-        <%!-- Faro board --%>
-        <.faro_board
-          bets={@board_bets}
-          high_card_bet={@high_card_bet_pending}
-          on_rank_click={if @round.phase == :dealing, do: "place_bet"}
-          on_high_card_click={if @round.phase == :dealing, do: "place_high_card_bet"}
-        />
-
-        <%!-- Unified betting + action controls --%>
-        <%= if @round.phase != :finished do %>
-          <div class="flex flex-wrap items-center gap-3 rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
-            <%= if @round.phase == :dealing do %>
-              <span class="text-xs uppercase tracking-widest text-stone-400">Bet</span>
-              <div class="flex items-center gap-1.5">
-                <button
-                  phx-click="halve_amount"
-                  class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
-                >
-                  ½
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={@bet_amount}
-                  phx-change="set_amount"
-                  phx-debounce="300"
-                  name="amount"
-                  class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-                />
-                <button
-                  phx-click="double_amount"
-                  class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
-                >
-                  2×
-                </button>
-                <span class="text-xs text-stone-500">sats</span>
-              </div>
-              <button
-                phx-click="toggle_copper"
-                class={[
-                  "rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors",
-                  if(@copper?,
-                    do: "border-orange-600 bg-orange-800 text-orange-200",
-                    else: "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500"
-                  )
-                ]}
-              >
-                {if @copper?, do: "Copper ON", else: "Copper OFF"}
-              </button>
-              <button
-                phx-click="toggle_keep_bets"
-                disabled={@repeat_disabled}
-                class={[
-                  "rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                  cond do
-                    @repeat_disabled ->
-                      "border-stone-700 bg-stone-800 text-stone-600 cursor-not-allowed"
-
-                    @keep_bets? ->
-                      "border-amber-600 bg-amber-900/60 text-amber-300 hover:bg-amber-900"
-
-                    true ->
-                      "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200"
-                  end
-                ]}
-              >
-                {if @keep_bets?, do: "Repeating ✓", else: "Repeat Bets"}
-              </button>
-            <% end %>
-            <button
-              phx-click="deal_turn"
-              disabled={not @ctt_deal_enabled}
-              class={[
-                "ml-auto rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                if(@ctt_deal_enabled,
-                  do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
-                  else: "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
-                )
-              ]}
-            >
-              Deal Turn
-            </button>
-          </div>
+        <%!-- Board (dealing only) or Call the Turn card selection --%>
+        <%= if @round.phase == :dealing do %>
+          <.faro_board
+            bets={@board_bets}
+            high_card_bet={@high_card_bet_pending}
+            on_rank_click="place_bet"
+            on_high_card_click="place_high_card_bet"
+          />
         <% end %>
-
-        <%!-- Call the Turn area --%>
         <%= if @round.phase == :call_the_turn do %>
           <div class="rounded-lg border border-amber-600 bg-amber-950/30 p-4 space-y-5">
             <div>
@@ -469,6 +392,83 @@ defmodule FaroWeb.PlayLive do
           </div>
         <% end %>
 
+        <%!-- Unified betting + action controls --%>
+        <%= if @round.phase != :finished do %>
+          <div class="flex flex-wrap items-center gap-3 rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
+            <%= if @round.phase == :dealing do %>
+              <span class="text-xs uppercase tracking-widest text-stone-400">Bet</span>
+              <div class="flex items-center gap-1.5">
+                <button
+                  phx-click="halve_amount"
+                  class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+                >
+                  ½
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  value={@bet_amount}
+                  phx-change="set_amount"
+                  phx-debounce="300"
+                  name="amount"
+                  class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
+                />
+                <button
+                  phx-click="double_amount"
+                  class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+                >
+                  2×
+                </button>
+                <span class="text-xs text-stone-500">sats</span>
+              </div>
+              <button
+                phx-click="toggle_copper"
+                class={[
+                  "rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors",
+                  if(@copper?,
+                    do: "border-orange-600 bg-orange-800 text-orange-200",
+                    else: "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500"
+                  )
+                ]}
+              >
+                {if @copper?, do: "Copper ON", else: "Copper OFF"}
+              </button>
+              <button
+                phx-click="toggle_keep_bets"
+                disabled={@repeat_disabled}
+                class={[
+                  "rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                  cond do
+                    @repeat_disabled ->
+                      "border-stone-700 bg-stone-800 text-stone-600 cursor-not-allowed"
+
+                    @keep_bets? ->
+                      "border-amber-600 bg-amber-900/60 text-amber-300 hover:bg-amber-900"
+
+                    true ->
+                      "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200"
+                  end
+                ]}
+              >
+                {if @keep_bets?, do: "Repeating ✓", else: "Repeat Bets"}
+              </button>
+            <% end %>
+            <button
+              phx-click="deal_turn"
+              disabled={not @ctt_deal_enabled}
+              class={[
+                "ml-auto rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                if(@ctt_deal_enabled,
+                  do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
+                  else: "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
+                )
+              ]}
+            >
+              Deal Turn
+            </button>
+          </div>
+        <% end %>
+
         <%!-- Pending bets --%>
         <%= if @round.phase != :finished and @pending_bets != [] do %>
           <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
@@ -489,6 +489,28 @@ defmodule FaroWeb.PlayLive do
                 </li>
               <% end %>
             </ul>
+          </div>
+        <% end %>
+
+        <%!-- Round Complete --%>
+        <%= if @round.phase == :finished do %>
+          <div class="rounded-lg border border-amber-700/50 bg-stone-900 p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold uppercase tracking-widest text-amber-400">
+                Round Complete
+              </h3>
+              <button
+                phx-click="new_round"
+                class="rounded border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-950 transition-colors hover:bg-amber-500"
+              >
+                New Round
+              </button>
+            </div>
+            <p class="text-sm text-stone-300">
+              Final balance:
+              <span class="font-mono font-semibold text-amber-400">{format_sats(@balance)}</span>
+              sats
+            </p>
           </div>
         <% end %>
 
@@ -576,34 +598,8 @@ defmodule FaroWeb.PlayLive do
 
         <.casekeeper_display seen={@round.casekeeper.seen} />
 
-        <%!-- Round finished --%>
-        <%= if @round.phase == :finished do %>
-          <div class="rounded-lg border border-amber-700/50 bg-stone-900 p-4 space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold uppercase tracking-widest text-amber-400">
-                Round Complete
-              </h3>
-              <button
-                phx-click="new_round"
-                class="rounded border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-950 transition-colors hover:bg-amber-500"
-              >
-                New Round
-              </button>
-            </div>
-            <p class="text-sm text-stone-300">
-              Final balance:
-              <span class="font-mono font-semibold text-amber-400">{format_sats(@balance)}</span>
-              sats
-            </p>
-            <%= if @round.deck != [] do %>
-              <p class="text-xs text-stone-500">
-                Hock: {rank_label(hd(@round.deck).rank)} {suit_symbol(hd(@round.deck).suit)}
-              </p>
-            <% end %>
-          </div>
-          <%= if @audit do %>
-            <.audit_panel audit={@audit} />
-          <% end %>
+        <%= if @audit do %>
+          <.audit_panel audit={@audit} />
         <% end %>
       </div>
     </div>
