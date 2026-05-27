@@ -2,6 +2,8 @@
 
 A historically accurate Faro card-game simulator built with Phoenix LiveView and Ash Framework.
 
+**[Play now at faro.slowinput.org](https://faro.slowinput.org)**
+
 Faro dominated American gambling halls for nearly a century. When honestly dealt it offered unusually favorable odds — a house edge derived almost entirely from doublets (when both revealed cards share a rank). This project recreates the game with a focus on transparency, auditability, and provably fair mechanics rather than modern casino design.
 
 ## Features
