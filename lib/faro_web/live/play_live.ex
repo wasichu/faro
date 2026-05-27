@@ -1,13 +1,29 @@
 defmodule FaroWeb.PlayLive do
   use FaroWeb, :live_view
 
+  require Logger
+
   alias Faro.GameEngine.{Audit, Bet, CallTheTurnBet, Card, Deck, Fairness, HighCardBet, Round, Shuffle}
+  alias Faro.FaroGame.GameSession
+  alias Faro.FaroGame.Round, as: RoundRecord
+  alias Faro.FaroGame.Turn, as: TurnRecord
+  alias Faro.FaroGame.Serializer
+  alias Faro.Audit.Record, as: AuditRecord
 
   @starting_balance 1_000_000
   @default_bet 1_000
 
   def mount(_params, _session, socket) do
-    {:ok, socket |> assign(page_title: "Play") |> start_round(1, @starting_balance)}
+    session_id =
+      case GameSession.create(%{}) do
+        {:ok, session} -> session.id
+        {:error, e} -> Logger.warning("GameSession creation failed: #{inspect(e)}"); nil
+      end
+
+    {:ok,
+     socket
+     |> assign(page_title: "Play", session_id: session_id)
+     |> start_round(1, @starting_balance)}
   end
 
   # ---------------------------------------------------------------------------
@@ -201,6 +217,18 @@ defmodule FaroWeb.PlayLive do
         Audit.from_round(new_round, commitment, server_seed, client_seed, nonce, shuffled_deck)
         |> Audit.verify_full()
       end
+
+    # Persistence — fire-and-forget; errors are logged but never crash the LiveView
+    db_round_id = socket.assigns[:db_round_id]
+    persist_turn(db_round_id, completed_turn)
+
+    if new_round.phase == :call_the_turn and round.phase == :dealing do
+      update_round_phase(db_round_id, :call_the_turn)
+    end
+
+    if new_round.phase == :finished do
+      persist_round_complete(db_round_id, server_seed, audit)
+    end
 
     # Reset CTT state when entering CTT phase; preserve slots after CTT deal (for result display)
     {new_ctt_slots, new_ctt_selected} =
@@ -682,6 +710,8 @@ defmodule FaroWeb.PlayLive do
     shuffled_deck = Shuffle.shuffle(Deck.new(), shuffle_seed)
     round = Round.new(shuffled_deck)
 
+    db_round_id = persist_round_start(socket, shuffled_deck, commitment, client_seed, nonce)
+
     assign(socket,
       balance: balance,
       round: round,
@@ -690,6 +720,7 @@ defmodule FaroWeb.PlayLive do
       client_seed: client_seed,
       nonce: nonce,
       shuffled_deck: shuffled_deck,
+      db_round_id: db_round_id,
       pending_bets: [],
       last_turn: nil,
       last_settlements: [],
@@ -701,6 +732,88 @@ defmodule FaroWeb.PlayLive do
       ctt_amount: @default_bet,
       audit: nil
     )
+  end
+
+  defp persist_round_start(socket, shuffled_deck, commitment, client_seed, nonce) do
+    attrs = %{
+      game_session_id: socket.assigns[:session_id],
+      nonce: nonce,
+      client_seed: client_seed,
+      server_seed_hash: commitment,
+      algorithm_version: Fairness.algorithm_version(),
+      soda_rank: hd(shuffled_deck).rank,
+      soda_suit: to_string(hd(shuffled_deck).suit),
+      status: :dealing,
+      shuffled_deck: Serializer.encode_deck(shuffled_deck)
+    }
+
+    case RoundRecord.create(attrs) do
+      {:ok, db_round} -> db_round.id
+      {:error, e} -> Logger.warning("Round persistence failed: #{inspect(e)}"); nil
+    end
+  end
+
+  defp persist_turn(nil, _turn), do: :ok
+
+  defp persist_turn(db_round_id, turn) do
+    attrs = %{
+      round_id: db_round_id,
+      index: turn.index,
+      loser_rank: turn.loser.rank,
+      loser_suit: to_string(turn.loser.suit),
+      winner_rank: turn.winner.rank,
+      winner_suit: to_string(turn.winner.suit),
+      split: turn.split?,
+      bets: Enum.map(turn.bets, &Serializer.encode_bet/1),
+      settlements: Enum.map(turn.settlements, &Serializer.encode_settlement/1)
+    }
+
+    case TurnRecord.create(attrs) do
+      {:ok, _} -> :ok
+      {:error, e} -> Logger.warning("Turn persistence failed: #{inspect(e)}")
+    end
+  end
+
+  defp update_round_phase(nil, _phase), do: :ok
+
+  defp update_round_phase(db_round_id, phase) do
+    with {:ok, db_round} <- RoundRecord.get(db_round_id),
+         {:ok, _} <- RoundRecord.update(db_round, %{status: phase}) do
+      :ok
+    else
+      {:error, e} -> Logger.warning("Round phase update failed: #{inspect(e)}")
+    end
+  end
+
+  defp persist_round_complete(nil, _server_seed, _audit), do: :ok
+
+  defp persist_round_complete(db_round_id, server_seed, audit) do
+    with {:ok, db_round} <- RoundRecord.get(db_round_id),
+         {:ok, _} <- RoundRecord.update(db_round, %{status: :finished, server_seed: server_seed}) do
+      :ok
+    else
+      {:error, e} -> Logger.warning("Round finalization failed: #{inspect(e)}")
+    end
+
+    if audit do
+      attrs = %{
+        round_id: db_round_id,
+        algorithm_version: audit.algorithm_version,
+        server_commitment: audit.server_commitment,
+        server_seed: audit.server_seed,
+        client_seed: audit.client_seed,
+        nonce: audit.nonce,
+        verified: audit.verified?,
+        shuffled_deck: Serializer.encode_deck(audit.shuffled_deck),
+        soda: Serializer.encode_card(audit.soda),
+        turns: Enum.map(audit.turns, &Serializer.encode_audit_turn/1)
+      }
+
+      case AuditRecord.create(attrs) do
+        {:ok, _} -> :ok
+        {:error, e} -> Logger.warning("Audit record persistence failed: #{inspect(e)}")
+      end
+    end
   end
 
   defp ctt_available_cards(round, slots) do
