@@ -382,7 +382,16 @@ defmodule FaroWeb.PlayLive do
               {rank_label(@round.soda.rank)}{suit_symbol(@round.soda.suit)}
             </span>
           </div>
-          <.balance_display balance_sats={@balance} />
+          <div class="flex items-center gap-3">
+            <.balance_display balance_sats={@balance} />
+            <button
+              phx-click={JS.show(to: "#glossary-modal")}
+              class="rounded-full border border-stone-600 w-6 h-6 text-xs text-stone-500 hover:border-amber-500 hover:text-amber-400 transition-colors flex items-center justify-center"
+              title="Glossary"
+            >
+              ?
+            </button>
+          </div>
         </div>
 
         <%!-- Shuffle Verification + Client Seed (published before play, visible throughout) --%>
@@ -664,35 +673,77 @@ defmodule FaroWeb.PlayLive do
           </div>
         <% end %>
 
-        <%!-- Pending bets --%>
-        <%= if @round.phase != :finished and @pending_bets != [] do %>
-          <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
-            <h3 class="mb-2 text-xs font-bold uppercase tracking-widest text-amber-400">
-              Active Bets
-            </h3>
-            <ul class="space-y-1.5">
-              <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
-                <li class="flex items-center justify-between text-sm">
-                  <span class="text-stone-300">{pending_bet_label(bet)}</span>
-                  <div class="flex items-center gap-3">
-                    <span class="font-mono text-amber-400">{format_sats(bet.amount)} sats</span>
-                    <button
-                      phx-click="remove_bet"
-                      phx-value-index={idx}
-                      class="text-xs text-stone-500 transition-colors hover:text-red-400"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </li>
-              <% end %>
-            </ul>
-          </div>
-        <% end %>
+        <%!-- Combined bets + settlements --%>
+        <%= if @pending_bets != [] or @last_settlements != [] do %>
+          <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3 space-y-2">
+            <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">Bets</h3>
 
-        <%!-- Settlement results --%>
-        <%= if @last_settlements != [] do %>
-          <.settlement_list settlements={@last_settlements} />
+            <%= if @last_settlements != [] do %>
+              <%!-- Post-deal: each settled bet with outcome below it --%>
+              <ul class="divide-y divide-stone-700/50">
+                <%= for s <- @last_settlements do %>
+                  <li class="py-2 flex items-start justify-between gap-3 text-sm">
+                    <div class="space-y-0.5">
+                      <div class="text-stone-300">{pending_bet_label(s.bet)}</div>
+                      <div class="flex items-center gap-2">
+                        <span class={["text-xs font-semibold", outcome_text_class(s.outcome)]}>
+                          {outcome_word(s.outcome)}
+                        </span>
+                        <span class={["font-mono text-xs", outcome_text_class(s.outcome)]}>
+                          {outcome_net_label(s.outcome, s.net)}
+                        </span>
+                      </div>
+                    </div>
+                    <span class="font-mono text-stone-500 text-xs flex-shrink-0 pt-0.5">
+                      {format_sats(s.bet.amount)} sats
+                    </span>
+                  </li>
+                <% end %>
+              </ul>
+              <%!-- Restored bets for next turn --%>
+              <%= if @pending_bets != [] and @round.phase == :dealing do %>
+                <div class="border-t border-stone-700 pt-2 space-y-1.5">
+                  <div class="text-[10px] uppercase tracking-widest text-stone-500">Next Turn</div>
+                  <ul class="space-y-1.5">
+                    <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
+                      <li class="flex items-center justify-between text-sm">
+                        <span class="text-stone-300">{pending_bet_label(bet)}</span>
+                        <div class="flex items-center gap-3">
+                          <span class="font-mono text-amber-400">{format_sats(bet.amount)} sats</span>
+                          <button
+                            phx-click="remove_bet"
+                            phx-value-index={idx}
+                            class="text-xs text-stone-500 transition-colors hover:text-red-400"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+              <% end %>
+            <% else %>
+              <%!-- Pre-deal: pending bets only --%>
+              <ul class="space-y-1.5">
+                <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
+                  <li class="flex items-center justify-between text-sm">
+                    <span class="text-stone-300">{pending_bet_label(bet)}</span>
+                    <div class="flex items-center gap-3">
+                      <span class="font-mono text-amber-400">{format_sats(bet.amount)} sats</span>
+                      <button
+                        phx-click="remove_bet"
+                        phx-value-index={idx}
+                        class="text-xs text-stone-500 transition-colors hover:text-red-400"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+          </div>
         <% end %>
 
         <%!-- Round Complete --%>
@@ -841,6 +892,70 @@ defmodule FaroWeb.PlayLive do
           <.audit_panel audit={@audit} />
         <% end %>
       </div>
+    </div>
+
+    <%!-- Glossary modal --%>
+    <div id="glossary-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        class="absolute inset-0 bg-stone-950/80 backdrop-blur-sm"
+        phx-click={JS.hide(to: "#glossary-modal")}
+      >
+      </div>
+      <div class="relative w-full max-w-lg rounded-lg border border-stone-700 bg-stone-900 shadow-2xl flex flex-col max-h-[80vh]">
+        <div class="flex items-center justify-between border-b border-stone-700 px-5 py-4 flex-shrink-0">
+          <h2 class="font-serif text-lg font-semibold text-amber-400">Glossary</h2>
+          <button
+            phx-click={JS.hide(to: "#glossary-modal")}
+            class="text-stone-500 hover:text-stone-200 transition-colors text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="overflow-y-auto px-5 py-4 space-y-5 text-sm">
+          <.glossary_entry term="Soda">
+            The first card burned from the top of the deck at the start of each round. Shown face-up and counted in the casekeeper, but no bets are settled on the soda card.
+          </.glossary_entry>
+          <.glossary_entry term="Hock">
+            The last card remaining after all 25 turns are dealt. It is revealed but never dealt — no bets settle on the hock.
+          </.glossary_entry>
+          <.glossary_entry term="Doublet (Split)">
+            When both cards in a turn share the same rank. Any bet on that rank loses half its stake to the house; the other half is returned. The copper flag does not affect a split.
+          </.glossary_entry>
+          <.glossary_entry term="Copper">
+            A marker placed on a bet to reverse it. A coppered bet wins when its rank appears as the banker card and loses when it appears as the player card — the opposite of a plain bet.
+          </.glossary_entry>
+          <.glossary_entry term="Call the Turn">
+            The final bet, placed when exactly three cards remain. Players predict the exact order of banker and player cards. Correct prediction on three distinct ranks pays 4:1; a cat-hop (two of a kind) pays 1:1.
+          </.glossary_entry>
+          <.glossary_entry term="Shuffle Verification">
+            A SHA-256 hash of the server seed, published before any cards are dealt. After the round the server reveals its seed — you can hash it yourself to confirm it matches, proving the shuffle was pre-committed and never changed.
+          </.glossary_entry>
+          <.glossary_entry term="Server Seed">
+            A secret 32-byte random value generated by the server before the round begins. Kept hidden during play, then revealed at the end so the shuffle can be independently verified.
+          </.glossary_entry>
+          <.glossary_entry term="Client Seed">
+            Your contribution to the shuffle. Combined with the server seed and nonce via HMAC-SHA256 to produce the shuffle seed. Because both parties contribute, neither alone controls the outcome.
+          </.glossary_entry>
+          <.glossary_entry term="Shuffle Seed">
+            The 32-byte value derived from server seed, client seed, and nonce using HMAC-SHA256. It directly drives the Fisher-Yates shuffle algorithm to produce the deck order.
+          </.glossary_entry>
+          <.glossary_entry term="Nonce">
+            A round counter that increments with each new round. Ensures a unique shuffle even if the same client seed is reused across rounds.
+          </.glossary_entry>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  slot :inner_block, required: true
+  attr :term, :string, required: true
+
+  defp glossary_entry(assigns) do
+    ~H"""
+    <div class="space-y-1">
+      <dt class="font-semibold text-stone-200">{@term}</dt>
+      <dd class="text-stone-400 leading-relaxed">{render_slot(@inner_block)}</dd>
     </div>
     """
   end
@@ -1039,6 +1154,24 @@ defmodule FaroWeb.PlayLive do
 
   defp pending_bet_label(%CallTheTurnBet{predicted_loser: l, predicted_winner: w}),
     do: "Call the Turn: Banker #{rank_label(l)} → Player #{rank_label(w)}"
+
+  defp outcome_word(:win), do: "Won"
+  defp outcome_word(:loss), do: "Lost"
+  defp outcome_word(:push), do: "Push"
+  defp outcome_word(:split), do: "Split"
+  defp outcome_word(:void), do: "Void"
+
+  defp outcome_text_class(:win), do: "text-green-400"
+  defp outcome_text_class(:loss), do: "text-red-400"
+  defp outcome_text_class(:push), do: "text-stone-500"
+  defp outcome_text_class(:split), do: "text-amber-400"
+  defp outcome_text_class(:void), do: "text-stone-500"
+
+  defp outcome_net_label(:win, net), do: "+#{format_sats(net)}"
+  defp outcome_net_label(:loss, _net), do: ""
+  defp outcome_net_label(:push, _net), do: "returned"
+  defp outcome_net_label(:split, net), do: format_sats(net)
+  defp outcome_net_label(:void, _net), do: "returned"
 
   defp rank_label(1), do: "A"
   defp rank_label(11), do: "J"
