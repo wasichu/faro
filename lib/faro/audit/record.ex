@@ -28,12 +28,6 @@ defmodule Faro.Audit.Record do
     defaults [:read, :destroy, create: :*, update: :*]
   end
 
-  code_interface do
-    define :create, action: :create
-    define :get, action: :read, get_by: :id
-    define :get_by_round, action: :read, get_by: :round_id
-  end
-
   attributes do
     uuid_primary_key :id
 

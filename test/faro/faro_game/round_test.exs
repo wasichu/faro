@@ -1,9 +1,9 @@
 defmodule Faro.FaroGame.RoundTest do
   use Faro.DataCase, async: true
 
+  alias Faro.Audit, as: AuditDomain
   alias Faro.FaroGame
   alias Faro.FaroGame.Serializer
-  alias Faro.Audit.Record, as: AuditRecord
   alias Faro.GameEngine.Audit
   alias Faro.GameEngine.Bet
   alias Faro.GameEngine.Deck
@@ -243,7 +243,7 @@ defmodule Faro.FaroGame.RoundTest do
         FaroGame.create_round(round_attrs(original_deck, server_seed, commitment, client_seed, nonce))
 
       assert {:ok, record} =
-               AuditRecord.create(%{
+               AuditDomain.create_audit_record(%{
                  round_id: db_round.id,
                  algorithm_version: audit.algorithm_version,
                  server_commitment: audit.server_commitment,
@@ -268,7 +268,7 @@ defmodule Faro.FaroGame.RoundTest do
       audit = Audit.from_round(finished, commitment, server_seed, client_seed, nonce, deck) |> Audit.verify_full()
       {:ok, db_round} = FaroGame.create_round(round_attrs(deck, server_seed, commitment, client_seed, nonce))
 
-      AuditRecord.create!(%{
+      AuditDomain.create_audit_record!(%{
         round_id: db_round.id,
         algorithm_version: audit.algorithm_version,
         server_commitment: audit.server_commitment,
@@ -281,7 +281,7 @@ defmodule Faro.FaroGame.RoundTest do
         turns: Enum.map(audit.turns, &Serializer.encode_audit_turn/1)
       })
 
-      assert {:ok, record} = AuditRecord.get_by_round(db_round.id)
+      assert {:ok, record} = AuditDomain.get_audit_record_by_round(db_round.id)
       assert record.round_id == db_round.id
       assert record.verified == true
     end

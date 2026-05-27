@@ -4,12 +4,11 @@ defmodule FaroWeb.PlayLive do
   require Logger
 
   alias Faro.GameEngine.{Audit, Bet, CallTheTurnBet, Card, Deck, Fairness, HighCardBet, Round, Shuffle}
+  alias Faro.Audit
   alias Faro.FaroGame
   alias Faro.FaroGame.Serializer
   alias Faro.FaroGame.Wallet
-  alias Faro.Audit.Record, as: AuditRecord
 
-  @starting_balance 1_000_000
   @default_bet 1_000
 
   def mount(_params, _session, socket) do
@@ -22,7 +21,7 @@ defmodule FaroWeb.PlayLive do
     {wallet, balance} =
       case Wallet.create_with_topup(%{game_session_id: session_id}) do
         {:ok, w} -> {w, w.balance_sats}
-        {:error, e} -> Logger.warning("Wallet creation failed: #{inspect(e)}"); {nil, @starting_balance}
+        {:error, e} -> Logger.warning("Wallet creation failed: #{inspect(e)}"); {nil, 1_000_000}
       end
 
     {:ok,
@@ -832,7 +831,7 @@ defmodule FaroWeb.PlayLive do
         turns: Enum.map(audit.turns, &Serializer.encode_audit_turn/1)
       }
 
-      case AuditRecord.create(attrs) do
+      case Audit.create_audit_record(attrs) do
         {:ok, _} -> :ok
         {:error, e} -> Logger.warning("Audit record persistence failed: #{inspect(e)}")
       end

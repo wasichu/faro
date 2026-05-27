@@ -14,6 +14,10 @@ defmodule Faro.Audit do
   use Ash.Domain
 
   resources do
-    resource Faro.Audit.Record
+    resource Faro.Audit.Record do
+      define :create_audit_record, action: :create
+      define :get_audit_record, action: :read, get_by: :id
+      define :get_audit_record_by_round, action: :read, get_by: :round_id
+    end
   end
 end

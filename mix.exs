@@ -96,6 +96,8 @@ defmodule Faro.MixProject do
         "esbuild faro --minify",
         "phx.digest"
       ],
+      "docker.up": ["cmd docker compose up -d"],
+      dev: ["docker.up", "phx.server"],
       precommit: ["compile --warning-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
