@@ -231,9 +231,6 @@ defmodule FaroWeb.GameComponents do
                 </span>
                 <span class="text-[10px] text-stone-500 uppercase">hock</span>
               <% end %>
-              <%= if turn.split? and not ctt_turn? do %>
-                <span class="text-[10px] text-orange-400 uppercase">split</span>
-              <% end %>
             </li>
           <% end %>
         </ol>
