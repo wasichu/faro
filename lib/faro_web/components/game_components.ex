@@ -193,9 +193,6 @@ defmodule FaroWeb.GameComponents do
           <.playing_card rank={@hock_card.rank} suit={@hock_card.suit} label="Hock" />
         <% end %>
       </div>
-      <%= if @split? do %>
-        <p class="mt-2 text-xs text-orange-400">Split — banker takes half</p>
-      <% end %>
     </div>
     """
   end
