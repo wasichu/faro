@@ -165,35 +165,33 @@ defmodule FaroWeb.GameComponents do
 
   def current_turn_display(assigns) do
     ~H"""
-    <div class="rounded-lg border border-stone-700 bg-stone-800 p-4">
-      <h3 class="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
-        {if @turn_number, do: "Turn #{@turn_number}", else: "Awaiting Deal"}
-      </h3>
-      <div class="flex items-end gap-6">
-        <div class="flex flex-col items-center gap-1">
-          <%= if @banker_card do %>
-            <.playing_card rank={@banker_card.rank} suit={@banker_card.suit} label="Banker" />
-          <% else %>
-            <span class="mb-1 text-xs uppercase tracking-widest text-stone-400">Banker</span>
-            <.card_back />
-          <% end %>
-        </div>
-        <div class="mb-8 text-xl text-stone-500">
-          {if @split?, do: "≡", else: "→"}
-        </div>
-        <div class="flex flex-col items-center gap-1">
-          <%= if @player_card do %>
-            <.playing_card rank={@player_card.rank} suit={@player_card.suit} label="Player" />
-          <% else %>
-            <span class="mb-1 text-xs uppercase tracking-widest text-stone-400">Player</span>
-            <.card_back />
-          <% end %>
-        </div>
-        <%= if @hock_card do %>
-          <div class="mb-8 text-xl text-stone-500">→</div>
-          <.playing_card rank={@hock_card.rank} suit={@hock_card.suit} label="Hock" />
+    <h3 class="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+      {if @turn_number, do: "Turn #{@turn_number}", else: "Awaiting Deal"}
+    </h3>
+    <div class="flex items-end gap-6">
+      <div class="flex flex-col items-center gap-1">
+        <%= if @banker_card do %>
+          <.playing_card rank={@banker_card.rank} suit={@banker_card.suit} label="Banker" />
+        <% else %>
+          <span class="mb-1 text-xs uppercase tracking-widest text-stone-400">Banker</span>
+          <.card_back />
         <% end %>
       </div>
+      <div class="mb-8 text-xl text-stone-500">
+        {if @split?, do: "≡", else: "→"}
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <%= if @player_card do %>
+          <.playing_card rank={@player_card.rank} suit={@player_card.suit} label="Player" />
+        <% else %>
+          <span class="mb-1 text-xs uppercase tracking-widest text-stone-400">Player</span>
+          <.card_back />
+        <% end %>
+      </div>
+      <%= if @hock_card do %>
+        <div class="mb-8 text-xl text-stone-500">→</div>
+        <.playing_card rank={@hock_card.rank} suit={@hock_card.suit} label="Hock" />
+      <% end %>
     </div>
     """
   end
@@ -207,37 +205,35 @@ defmodule FaroWeb.GameComponents do
 
   def recent_turns_list(assigns) do
     ~H"""
-    <div class="rounded-lg border border-stone-700 bg-stone-800 p-4">
-      <h3 class="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">Recent Turns</h3>
-      <%= if @turns == [] do %>
-        <p class="text-xs text-stone-500 italic">No turns played yet</p>
-      <% else %>
-        <ol class="space-y-1.5">
-          <%= for turn <- @turns do %>
-            <li class="flex items-center gap-2 text-sm">
-              <span class="w-6 text-right text-xs text-stone-500">T{turn.index}</span>
-              <span class={["font-mono", suit_color(turn.loser.suit)]}>
-                {rank_label(turn.loser.rank)}{suit_symbol(turn.loser.suit)}
+    <h3 class="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">Recent Turns</h3>
+    <%= if @turns == [] do %>
+      <p class="text-xs text-stone-500 italic">No turns played yet</p>
+    <% else %>
+      <ol class="space-y-1.5">
+        <%= for turn <- @turns do %>
+          <li class="flex items-center gap-2 text-sm">
+            <span class="w-6 text-right text-xs text-stone-500">T{turn.index}</span>
+            <span class={["font-mono", suit_color(turn.loser.suit)]}>
+              {rank_label(turn.loser.rank)}{suit_symbol(turn.loser.suit)}
+            </span>
+            <% ctt_turn? = turn.index == 25 and @hock_card != nil %>
+            <span class="text-stone-500">
+              {if turn.split? and not ctt_turn?, do: "≡", else: "→"}
+            </span>
+            <span class={["font-mono", suit_color(turn.winner.suit)]}>
+              {rank_label(turn.winner.rank)}{suit_symbol(turn.winner.suit)}
+            </span>
+            <%= if ctt_turn? do %>
+              <span class="text-stone-500">→</span>
+              <span class={["font-mono", suit_color(@hock_card.suit)]}>
+                {rank_label(@hock_card.rank)}{suit_symbol(@hock_card.suit)}
               </span>
-              <% ctt_turn? = turn.index == 25 and @hock_card != nil %>
-              <span class="text-stone-500">
-                {if turn.split? and not ctt_turn?, do: "≡", else: "→"}
-              </span>
-              <span class={["font-mono", suit_color(turn.winner.suit)]}>
-                {rank_label(turn.winner.rank)}{suit_symbol(turn.winner.suit)}
-              </span>
-              <%= if ctt_turn? do %>
-                <span class="text-stone-500">→</span>
-                <span class={["font-mono", suit_color(@hock_card.suit)]}>
-                  {rank_label(@hock_card.rank)}{suit_symbol(@hock_card.suit)}
-                </span>
-                <span class="text-[10px] text-stone-500 uppercase">hock</span>
-              <% end %>
-            </li>
-          <% end %>
-        </ol>
-      <% end %>
-    </div>
+              <span class="text-[10px] text-stone-500 uppercase">hock</span>
+            <% end %>
+          </li>
+        <% end %>
+      </ol>
+    <% end %>
     """
   end
 
