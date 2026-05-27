@@ -620,17 +620,9 @@ defmodule FaroWeb.PlayLive do
               <%= if @ctt_placed_bet == nil and Enum.all?(@ctt_slots, &(&1 != nil)) do %>
                 <%= if @ctt_amount == 0 do %>
                   <span class="text-xs text-stone-500">Enter an amount to bet</span>
-                <% else %>
-                  <button
-                    phx-click="place_ctt_bet"
-                    disabled={@ctt_amount > @balance}
-                    class="rounded border border-amber-600 bg-amber-700 px-3 py-1 text-xs font-semibold text-stone-950 transition-colors hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Place Bet
-                  </button>
-                  <%= if @ctt_amount > @balance do %>
-                    <span class="text-xs text-red-400">Insufficient balance</span>
-                  <% end %>
+                <% end %>
+                <%= if @ctt_amount > @balance do %>
+                  <span class="text-xs text-red-400">Insufficient balance</span>
                 <% end %>
               <% end %>
               <%= if @ctt_placed_bet != nil do %>
@@ -702,9 +694,19 @@ defmodule FaroWeb.PlayLive do
               </button>
             <% end %>
             <%= if @round.phase == :call_the_turn do %>
+              <div class="flex-1"></div>
+              <%= if @ctt_placed_bet == nil and Enum.all?(@ctt_slots, &(&1 != nil)) and @ctt_amount > 0 do %>
+                <button
+                  phx-click="place_ctt_bet"
+                  disabled={@ctt_amount > @balance}
+                  class="rounded border border-amber-600 bg-amber-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-950 transition-colors hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Place Bet
+                </button>
+              <% end %>
               <button
                 phx-click="skip_ctt"
-                class="ml-auto rounded border border-stone-600 bg-stone-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400 transition-colors hover:border-stone-500 hover:text-stone-200"
+                class="rounded border border-stone-600 bg-stone-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400 transition-colors hover:border-stone-500 hover:text-stone-200"
               >
                 Skip Final Bet
               </button>
@@ -714,7 +716,7 @@ defmodule FaroWeb.PlayLive do
               disabled={not @ctt_deal_enabled}
               class={[
                 "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                if(@round.phase == :call_the_turn, do: "", else: "ml-auto"),
+                if(@round.phase != :call_the_turn, do: "ml-auto", else: ""),
                 if(@ctt_deal_enabled,
                   do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
                   else: "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
