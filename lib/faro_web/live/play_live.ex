@@ -357,6 +357,10 @@ defmodule FaroWeb.PlayLive do
       |> assign(:hock_card, hock_card(assigns.round))
       |> assign(:round_wagered, round_wagered(assigns.round))
       |> assign(:round_net, round_net(assigns.round))
+      |> assign(
+        :ctt_preview_bet,
+        ctt_preview_bet(assigns.round, assigns.ctt_slots, assigns.ctt_amount)
+      )
 
     ~H"""
     <div class="bg-green-950 min-h-full">
@@ -487,66 +491,67 @@ defmodule FaroWeb.PlayLive do
               </p>
             </div>
 
-            <%!-- Available cards --%>
-            <div>
-              <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">Available Cards</div>
-              <div class="flex gap-3">
-                <%= for card <- @ctt_available do %>
-                  <div
-                    class={[
-                      "cursor-pointer transition-all duration-150",
-                      if(@ctt_selected == card, do: "-translate-y-2", else: "hover:-translate-y-1")
-                    ]}
-                    phx-click="ctt_select_card"
-                    phx-value-rank={card.rank}
-                    phx-value-suit={card.suit}
-                  >
-                    <div class={[
-                      "rounded-lg overflow-hidden",
-                      if(@ctt_selected == card, do: "ring-2 ring-amber-400", else: "")
-                    ]}>
-                      <.playing_card rank={card.rank} suit={card.suit} />
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            </div>
-
-            <%!-- Prediction slots --%>
-            <div>
-              <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">Predicted Order</div>
-              <div class="flex gap-4">
-                <%= for {slot_card, idx} <- Enum.with_index(@ctt_slots) do %>
-                  <div class="flex flex-col items-center gap-1">
-                    <span class="text-xs text-stone-400">
-                      {case idx do
-                        0 -> "1st · Banker"
-                        1 -> "2nd · Player"
-                        _ -> "3rd · Hock"
-                      end}
-                    </span>
+            <%!-- Available cards + Predicted Order — side by side on wider viewports --%>
+            <div class="flex flex-col sm:flex-row gap-6">
+              <div>
+                <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">Available Cards</div>
+                <div class="flex gap-3">
+                  <%= for card <- @ctt_available do %>
                     <div
                       class={[
-                        "rounded-lg border-2 cursor-pointer transition-colors overflow-hidden",
-                        if(slot_card != nil,
-                          do: "border-amber-500",
-                          else:
-                            "border-dashed border-stone-600 bg-stone-800/50 hover:border-amber-600"
-                        )
+                        "cursor-pointer transition-all duration-150",
+                        if(@ctt_selected == card, do: "-translate-y-2", else: "hover:-translate-y-1")
                       ]}
-                      phx-click="ctt_click_slot"
-                      phx-value-slot={idx}
+                      phx-click="ctt_select_card"
+                      phx-value-rank={card.rank}
+                      phx-value-suit={card.suit}
                     >
-                      <%= if slot_card != nil do %>
-                        <.playing_card rank={slot_card.rank} suit={slot_card.suit} />
-                      <% else %>
-                        <div class="h-24 w-16 flex items-center justify-center">
-                          <span class="text-2xl font-bold text-stone-600">{idx + 1}</span>
-                        </div>
-                      <% end %>
+                      <div class={[
+                        "rounded-lg overflow-hidden",
+                        if(@ctt_selected == card, do: "ring-2 ring-amber-400", else: "")
+                      ]}>
+                        <.playing_card rank={card.rank} suit={card.suit} />
+                      </div>
                     </div>
-                  </div>
-                <% end %>
+                  <% end %>
+                </div>
+              </div>
+
+              <div>
+                <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">Predicted Order</div>
+                <div class="flex gap-4">
+                  <%= for {slot_card, idx} <- Enum.with_index(@ctt_slots) do %>
+                    <div class="flex flex-col items-center gap-1">
+                      <span class="text-xs text-stone-400">
+                        {case idx do
+                          0 -> "1st · Banker"
+                          1 -> "2nd · Player"
+                          _ -> "3rd · Hock"
+                        end}
+                      </span>
+                      <div
+                        class={[
+                          "rounded-lg border-2 cursor-pointer transition-colors overflow-hidden",
+                          if(slot_card != nil,
+                            do: "border-amber-500",
+                            else:
+                              "border-dashed border-stone-600 bg-stone-800/50 hover:border-amber-600"
+                          )
+                        ]}
+                        phx-click="ctt_click_slot"
+                        phx-value-slot={idx}
+                      >
+                        <%= if slot_card != nil do %>
+                          <.playing_card rank={slot_card.rank} suit={slot_card.suit} />
+                        <% else %>
+                          <div class="h-24 w-16 flex items-center justify-center">
+                            <span class="text-2xl font-bold text-stone-600">{idx + 1}</span>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
               </div>
             </div>
 
@@ -674,12 +679,51 @@ defmodule FaroWeb.PlayLive do
         <% end %>
 
         <%!-- Combined bets + settlements --%>
-        <%= if @pending_bets != [] or @last_settlements != [] do %>
+        <%= if @pending_bets != [] or @last_settlements != [] or @ctt_preview_bet != nil do %>
           <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3 space-y-2">
             <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">Bets</h3>
 
             <%= if @last_settlements != [] do %>
               <%!-- Post-deal: each settled bet with outcome below it --%>
+              <%!-- Restored bets for next turn (shown first) --%>
+              <%= if @pending_bets != [] and @round.phase == :dealing do %>
+                <div class="space-y-1.5">
+                  <div class="text-[10px] uppercase tracking-widest text-stone-500">Next Turn</div>
+                  <ul class="space-y-1.5">
+                    <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
+                      <li class="flex items-center justify-between text-sm">
+                        <span class="text-stone-300">{pending_bet_label(bet)}</span>
+                        <div class="flex items-center gap-3">
+                          <span class="font-mono text-amber-400">{format_sats(bet.amount)} sats</span>
+                          <button
+                            phx-click="remove_bet"
+                            phx-value-index={idx}
+                            class="text-xs text-stone-500 transition-colors hover:text-red-400"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+                <div class="border-t border-stone-700"></div>
+              <% end %>
+              <%!-- CTT bet preview --%>
+              <%= if @ctt_preview_bet do %>
+                <div class="space-y-1.5">
+                  <div class="text-[10px] uppercase tracking-widest text-stone-500">Call the Turn</div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-stone-300">{pending_bet_label(@ctt_preview_bet)}</span>
+                    <span class="font-mono text-amber-400">
+                      {format_sats(@ctt_preview_bet.amount)} sats
+                    </span>
+                  </div>
+                </div>
+                <div class="border-t border-stone-700"></div>
+              <% end %>
+              <%!-- Last turn settlements --%>
+              <div class="text-[10px] uppercase tracking-widest text-stone-500">Last Turn</div>
               <ul class="divide-y divide-stone-700/50">
                 <%= for s <- @last_settlements do %>
                   <li class="py-2 flex items-start justify-between gap-3 text-sm">
@@ -700,29 +744,6 @@ defmodule FaroWeb.PlayLive do
                   </li>
                 <% end %>
               </ul>
-              <%!-- Restored bets for next turn --%>
-              <%= if @pending_bets != [] and @round.phase == :dealing do %>
-                <div class="border-t border-stone-700 pt-2 space-y-1.5">
-                  <div class="text-[10px] uppercase tracking-widest text-stone-500">Next Turn</div>
-                  <ul class="space-y-1.5">
-                    <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
-                      <li class="flex items-center justify-between text-sm">
-                        <span class="text-stone-300">{pending_bet_label(bet)}</span>
-                        <div class="flex items-center gap-3">
-                          <span class="font-mono text-amber-400">{format_sats(bet.amount)} sats</span>
-                          <button
-                            phx-click="remove_bet"
-                            phx-value-index={idx}
-                            class="text-xs text-stone-500 transition-colors hover:text-red-400"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </li>
-                    <% end %>
-                  </ul>
-                </div>
-              <% end %>
             <% else %>
               <%!-- Pre-deal: pending bets only --%>
               <ul class="space-y-1.5">
@@ -1111,6 +1132,13 @@ defmodule FaroWeb.PlayLive do
       []
     end
   end
+
+  defp ctt_preview_bet(%{phase: :call_the_turn}, [s1, s2, s3], amount)
+       when s1 != nil and s2 != nil and s3 != nil and amount > 0 do
+    %CallTheTurnBet{predicted_loser: s1.rank, predicted_winner: s2.rank, amount: amount}
+  end
+
+  defp ctt_preview_bet(_, _, _), do: nil
 
   defp ctt_deal_enabled?(:call_the_turn, slots, amount, balance) do
     filled = Enum.count(slots, &(&1 != nil))
