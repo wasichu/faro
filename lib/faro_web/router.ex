@@ -21,8 +21,11 @@ defmodule FaroWeb.Router do
       live "/", HomeLive
       live "/play", PlayLive
       live "/rules", RulesLive
+      live "/odds", OddsLive
       live "/fairness", FairnessLive
       live "/philosophy", PhilosophyLive
+      live "/audit/shuffle", AuditShuffleLive
+      live "/audit/rounds/:id", AuditRoundLive
     end
   end
 

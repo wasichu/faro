@@ -13,7 +13,7 @@ defmodule Faro.FaroGame.GameSession do
 
   postgres do
     table "game_sessions"
-    repo Faro.Repo
+    repo(Faro.Repo)
   end
 
   actions do

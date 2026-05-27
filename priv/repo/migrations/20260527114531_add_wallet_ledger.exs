@@ -50,7 +50,8 @@ defmodule Faro.Repo.Migrations.AddWalletLedger do
             name: "ledger_entries_wallet_id_fkey",
             type: :uuid,
             prefix: "public"
-          ), null: false
+          ),
+          null: false
 
       add :round_id,
           references(:game_rounds,

@@ -65,6 +65,22 @@ defmodule FaroWeb.Layouts do
               </li>
               <li>
                 <.link
+                  navigate={~p"/odds"}
+                  class="text-stone-300 hover:text-amber-400 text-sm tracking-wide uppercase transition-colors"
+                >
+                  Odds
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/audit/shuffle"}
+                  class="text-stone-300 hover:text-amber-400 text-sm tracking-wide uppercase transition-colors"
+                >
+                  Verify
+                </.link>
+              </li>
+              <li>
+                <.link
                   navigate={~p"/fairness"}
                   class="text-stone-300 hover:text-amber-400 text-sm tracking-wide uppercase transition-colors"
                 >

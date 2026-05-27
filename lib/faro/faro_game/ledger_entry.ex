@@ -20,7 +20,7 @@ defmodule Faro.FaroGame.LedgerEntry do
 
   postgres do
     table "ledger_entries"
-    repo Faro.Repo
+    repo(Faro.Repo)
   end
 
   actions do

@@ -20,7 +20,7 @@ defmodule Faro.FaroGame.Round do
 
   postgres do
     table "game_rounds"
-    repo Faro.Repo
+    repo(Faro.Repo)
   end
 
   actions do

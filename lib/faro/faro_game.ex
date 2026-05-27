@@ -27,6 +27,7 @@ defmodule Faro.FaroGame do
 
     resource Faro.FaroGame.Turn do
       define :create_turn, action: :create
+      define :list_turns_for_round, action: :by_round, args: [:round_id]
     end
 
     resource Faro.FaroGame.Wallet do

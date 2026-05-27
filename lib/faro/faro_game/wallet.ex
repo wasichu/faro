@@ -19,7 +19,7 @@ defmodule Faro.FaroGame.Wallet do
 
   postgres do
     table "wallets"
-    repo Faro.Repo
+    repo(Faro.Repo)
   end
 
   actions do

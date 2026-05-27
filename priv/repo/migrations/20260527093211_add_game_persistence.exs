@@ -111,7 +111,8 @@ defmodule Faro.Repo.Migrations.AddGamePersistence do
             name: "audit_records_round_id_fkey",
             type: :uuid,
             prefix: "public"
-          ), null: false
+          ),
+          null: false
     end
 
     create unique_index(:audit_records, [:round_id], name: "audit_records_unique_round_index")

@@ -3,7 +3,8 @@ defmodule FaroWeb.PlayLive do
 
   require Logger
 
-  alias Faro.GameEngine.{Audit, Bet, CallTheTurnBet, Card, Deck, Fairness, HighCardBet, Round, Shuffle}
+  alias Faro.GameEngine.{Bet, CallTheTurnBet, Card, Deck, Fairness, HighCardBet, Round, Shuffle}
+  alias Faro.GameEngine.Audit, as: EngineAudit
   alias Faro.Audit
   alias Faro.FaroGame
   alias Faro.FaroGame.Serializer
@@ -14,14 +15,22 @@ defmodule FaroWeb.PlayLive do
   def mount(_params, _session, socket) do
     session_id =
       case FaroGame.create_session(%{}) do
-        {:ok, session} -> session.id
-        {:error, e} -> Logger.warning("GameSession creation failed: #{inspect(e)}"); nil
+        {:ok, session} ->
+          session.id
+
+        {:error, e} ->
+          Logger.warning("GameSession creation failed: #{inspect(e)}")
+          nil
       end
 
     {wallet, balance} =
       case Wallet.create_with_topup(%{game_session_id: session_id}) do
-        {:ok, w} -> {w, w.balance_sats}
-        {:error, e} -> Logger.warning("Wallet creation failed: #{inspect(e)}"); {nil, 1_000_000}
+        {:ok, w} ->
+          {w, w.balance_sats}
+
+        {:error, e} ->
+          Logger.warning("Wallet creation failed: #{inspect(e)}")
+          {nil, 1_000_000}
       end
 
     {:ok,
@@ -106,7 +115,9 @@ defmodule FaroWeb.PlayLive do
     else
       idx = String.to_integer(idx_str)
       {bet, new_bets} = List.pop_at(socket.assigns.pending_bets, idx)
-      {:noreply, assign(socket, pending_bets: new_bets, balance: socket.assigns.balance + bet.amount)}
+
+      {:noreply,
+       assign(socket, pending_bets: new_bets, balance: socket.assigns.balance + bet.amount)}
     end
   end
 
@@ -218,8 +229,15 @@ defmodule FaroWeb.PlayLive do
 
     audit =
       if new_round.phase == :finished do
-        Audit.from_round(new_round, commitment, server_seed, client_seed, nonce, shuffled_deck)
-        |> Audit.verify_full()
+        EngineAudit.from_round(
+          new_round,
+          commitment,
+          server_seed,
+          client_seed,
+          nonce,
+          shuffled_deck
+        )
+        |> EngineAudit.verify_full()
       end
 
     # Persistence — fire-and-forget; errors are logged but never crash the LiveView
@@ -269,6 +287,36 @@ defmodule FaroWeb.PlayLive do
     {:noreply, start_round(socket, socket.assigns.nonce + 1, socket.assigns.balance)}
   end
 
+  def handle_event("regenerate_client_seed", _params, socket) do
+    if socket.assigns.round.turns == [] do
+      {:noreply, start_round(socket, socket.assigns.nonce, socket.assigns.balance)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_client_seed_edit", _params, socket) do
+    {:noreply, assign(socket, client_seed_editing?: !socket.assigns.client_seed_editing?)}
+  end
+
+  def handle_event("update_client_seed_draft", %{"seed" => seed}, socket) do
+    {:noreply, assign(socket, client_seed_draft: seed)}
+  end
+
+  def handle_event("apply_client_seed_draft", _params, socket) do
+    if socket.assigns.round.turns == [] do
+      draft = String.trim(socket.assigns.client_seed_draft)
+      seed = if draft == "", do: nil, else: draft
+
+      {:noreply,
+       socket
+       |> start_round(socket.assigns.nonce, socket.assigns.balance, client_seed: seed)
+       |> assign(client_seed_editing?: false, client_seed_draft: "")}
+    else
+      {:noreply, assign(socket, client_seed_editing?: false)}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Render
   # ---------------------------------------------------------------------------
@@ -299,7 +347,12 @@ defmodule FaroWeb.PlayLive do
       |> assign(:ctt_available, ctt_available_cards(assigns.round, assigns.ctt_slots))
       |> assign(
         :ctt_deal_enabled,
-        ctt_deal_enabled?(assigns.round.phase, assigns.ctt_slots, assigns.ctt_amount, assigns.balance)
+        ctt_deal_enabled?(
+          assigns.round.phase,
+          assigns.ctt_slots,
+          assigns.ctt_amount,
+          assigns.balance
+        )
       )
       |> assign(:hock_card, hock_card(assigns.round))
       |> assign(:round_wagered, round_wagered(assigns.round))
@@ -332,14 +385,74 @@ defmodule FaroWeb.PlayLive do
           <.balance_display balance_sats={@balance} />
         </div>
 
-        <%!-- Commitment (published before play, visible throughout) --%>
-        <div class="flex items-start gap-3 rounded border border-stone-700 bg-stone-900 px-3 py-2">
-          <span class="flex-shrink-0 pt-0.5 text-xs uppercase tracking-widest text-stone-500">
-            Commitment
-          </span>
-          <span class="break-all font-mono text-[10px] leading-relaxed text-stone-400">
-            {@commitment}
-          </span>
+        <%!-- Commitment + Client Seed (published before play, visible throughout) --%>
+        <div class="space-y-1.5">
+          <div class="flex items-start gap-3 rounded border border-stone-700 bg-stone-900 px-3 py-2">
+            <span class="flex-shrink-0 pt-0.5 text-xs uppercase tracking-widest text-stone-500">
+              Commitment
+            </span>
+            <span class="break-all font-mono text-[10px] leading-relaxed text-stone-400">
+              {@commitment}
+            </span>
+          </div>
+
+          <div class="rounded border border-stone-700 bg-stone-900 px-3 py-2 space-y-1.5">
+            <div class="flex items-start gap-3">
+              <span class="flex-shrink-0 pt-0.5 text-xs uppercase tracking-widest text-stone-500">
+                Client Seed
+              </span>
+              <span class="break-all font-mono text-[10px] leading-relaxed text-stone-400 flex-1">
+                {@client_seed}
+              </span>
+              <%= if @round.turns == [] do %>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    phx-click="regenerate_client_seed"
+                    class="text-xs text-stone-500 hover:text-amber-400 transition-colors border border-stone-700 rounded px-2 py-0.5"
+                  >
+                    Regenerate
+                  </button>
+                  <button
+                    phx-click="toggle_client_seed_edit"
+                    class={[
+                      "text-xs transition-colors border rounded px-2 py-0.5",
+                      if(@client_seed_editing?,
+                        do: "border-amber-600 text-amber-400",
+                        else: "border-stone-700 text-stone-500 hover:text-amber-400"
+                      )
+                    ]}
+                  >
+                    {if @client_seed_editing?, do: "Cancel", else: "Custom"}
+                  </button>
+                </div>
+              <% else %>
+                <span class="flex-shrink-0 text-xs text-stone-600">🔒 locked</span>
+              <% end %>
+            </div>
+
+            <%= if @client_seed_editing? do %>
+              <div class="flex items-center gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Enter your own client seed"
+                  value={@client_seed_draft}
+                  phx-change="update_client_seed_draft"
+                  phx-debounce="200"
+                  name="seed"
+                  class="flex-1 rounded border border-stone-600 bg-stone-800 px-2 py-1 font-mono text-xs text-stone-100 placeholder-stone-600 focus:border-amber-500 focus:outline-none"
+                />
+                <button
+                  phx-click="apply_client_seed_draft"
+                  class="rounded border border-amber-600 bg-amber-700 px-3 py-1 text-xs font-semibold text-stone-950 transition-colors hover:bg-amber-600"
+                >
+                  Apply
+                </button>
+              </div>
+              <p class="text-[10px] text-stone-600">
+                Applying a new client seed restarts this round with a new commitment.
+              </p>
+            <% end %>
+          </div>
         </div>
 
         <%!-- Board (dealing only) or Call the Turn card selection --%>
@@ -501,7 +614,7 @@ defmodule FaroWeb.PlayLive do
                   )
                 ]}
               >
-                {if @copper?, do: "Copper ON", else: "Copper OFF"}
+                Copper
               </button>
               <button
                 phx-click="toggle_keep_bets"
@@ -520,7 +633,7 @@ defmodule FaroWeb.PlayLive do
                   end
                 ]}
               >
-                {if @keep_bets?, do: "Repeating ✓", else: "Repeat Bets"}
+                {if @keep_bets?, do: "Repeating Bets ✓", else: "Repeat Bets"}
               </button>
             <% end %>
             <%= if @round.phase == :call_the_turn do %>
@@ -551,7 +664,9 @@ defmodule FaroWeb.PlayLive do
         <%!-- Pending bets --%>
         <%= if @round.phase != :finished and @pending_bets != [] do %>
           <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
-            <h3 class="mb-2 text-xs font-bold uppercase tracking-widest text-amber-400">Active Bets</h3>
+            <h3 class="mb-2 text-xs font-bold uppercase tracking-widest text-amber-400">
+              Active Bets
+            </h3>
             <ul class="space-y-1.5">
               <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
                 <li class="flex items-center justify-between text-sm">
@@ -584,12 +699,22 @@ defmodule FaroWeb.PlayLive do
               <h3 class="text-sm font-bold uppercase tracking-widest text-amber-400">
                 Round Complete
               </h3>
-              <button
-                phx-click="new_round"
-                class="rounded border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-950 transition-colors hover:bg-amber-500"
-              >
-                New Round
-              </button>
+              <div class="flex items-center gap-3">
+                <%= if @db_round_id do %>
+                  <.link
+                    navigate={~p"/audit/rounds/#{@db_round_id}"}
+                    class="rounded border border-stone-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-300 transition-colors hover:border-amber-600 hover:text-amber-400"
+                  >
+                    Audit Round
+                  </.link>
+                <% end %>
+                <button
+                  phx-click="new_round"
+                  class="rounded border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-950 transition-colors hover:bg-amber-500"
+                >
+                  New Round
+                </button>
+              </div>
             </div>
             <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-stone-300">
               <span>
@@ -600,7 +725,9 @@ defmodule FaroWeb.PlayLive do
               <%= if @round_wagered > 0 do %>
                 <span>
                   Wagered:
-                  <span class="font-mono font-semibold text-stone-200">{format_sats(@round_wagered)}</span>
+                  <span class="font-mono font-semibold text-stone-200">
+                    {format_sats(@round_wagered)}
+                  </span>
                   sats
                 </span>
                 <span>
@@ -613,7 +740,9 @@ defmodule FaroWeb.PlayLive do
                       true -> "text-stone-400"
                     end
                   ]}>
-                    {if @round_net > 0, do: "+#{format_sats(@round_net)}", else: format_sats(@round_net)}
+                    {if @round_net > 0,
+                      do: "+#{format_sats(@round_net)}",
+                      else: format_sats(@round_net)}
                   </span>
                   sats
                 </span>
@@ -650,11 +779,13 @@ defmodule FaroWeb.PlayLive do
                       <.playing_card
                         rank={slot_card.rank}
                         suit={slot_card.suit}
-                        label={case idx do
-                          0 -> "Banker"
-                          1 -> "Player"
-                          _ -> "Hock"
-                        end}
+                        label={
+                          case idx do
+                            0 -> "Banker"
+                            1 -> "Player"
+                            _ -> "Hock"
+                          end
+                        }
                       />
                     <% end %>
                   <% end %>
@@ -691,7 +822,9 @@ defmodule FaroWeb.PlayLive do
                     <span class="text-red-400 font-semibold">✗ Wrong order</span>
                   <% end %>
                   <span class="text-xs text-stone-500">
-                    Predicted Banker {rank_label(bet.predicted_loser)} → Player {rank_label(bet.predicted_winner)}
+                    Predicted Banker {rank_label(bet.predicted_loser)} → Player {rank_label(
+                      bet.predicted_winner
+                    )}
                   </span>
                 </li>
               <% end %>
@@ -713,10 +846,15 @@ defmodule FaroWeb.PlayLive do
   # Private
   # ---------------------------------------------------------------------------
 
-  defp start_round(socket, nonce, balance) do
+  defp start_round(socket, nonce, balance, opts \\ []) do
     server_seed = Fairness.generate_server_seed()
     commitment = Fairness.commit_server_seed(server_seed)
-    client_seed = :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
+
+    client_seed =
+      Keyword.get_lazy(opts, :client_seed, fn ->
+        :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
+      end) || :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
+
     shuffle_seed = Fairness.derive_shuffle_seed(server_seed, client_seed, nonce)
     shuffled_deck = Shuffle.shuffle(Deck.new(), shuffle_seed)
     round = Round.new(shuffled_deck)
@@ -741,7 +879,9 @@ defmodule FaroWeb.PlayLive do
       ctt_slots: [nil, nil, nil],
       ctt_selected: nil,
       ctt_amount: @default_bet,
-      audit: nil
+      audit: nil,
+      client_seed_editing?: false,
+      client_seed_draft: ""
     )
   end
 
@@ -749,7 +889,9 @@ defmodule FaroWeb.PlayLive do
 
   defp record_wallet_turn(wallet, completed_turn, balance, opts) do
     case Wallet.record_turn(wallet, completed_turn, balance, opts) do
-      {:ok, updated} -> updated
+      {:ok, updated} ->
+        updated
+
       {:error, e} ->
         Logger.warning("Wallet recording failed: #{inspect(e)}")
         wallet
@@ -770,8 +912,12 @@ defmodule FaroWeb.PlayLive do
     }
 
     case FaroGame.create_round(attrs) do
-      {:ok, db_round} -> db_round.id
-      {:error, e} -> Logger.warning("Round persistence failed: #{inspect(e)}"); nil
+      {:ok, db_round} ->
+        db_round.id
+
+      {:error, e} ->
+        Logger.warning("Round persistence failed: #{inspect(e)}")
+        nil
     end
   end
 
@@ -811,7 +957,8 @@ defmodule FaroWeb.PlayLive do
 
   defp persist_round_complete(db_round_id, server_seed, audit) do
     with {:ok, db_round} <- FaroGame.get_round(db_round_id),
-         {:ok, _} <- FaroGame.update_round(db_round, %{status: :finished, server_seed: server_seed}) do
+         {:ok, _} <-
+           FaroGame.update_round(db_round, %{status: :finished, server_seed: server_seed}) do
       :ok
     else
       {:error, e} -> Logger.warning("Round finalization failed: #{inspect(e)}")

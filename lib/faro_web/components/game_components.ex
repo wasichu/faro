@@ -220,7 +220,9 @@ defmodule FaroWeb.GameComponents do
                 {rank_label(turn.loser.rank)}{suit_symbol(turn.loser.suit)}
               </span>
               <% ctt_turn? = turn.index == 25 and @hock_card != nil %>
-              <span class="text-stone-500">{if turn.split? and not ctt_turn?, do: "≡", else: "→"}</span>
+              <span class="text-stone-500">
+                {if turn.split? and not ctt_turn?, do: "≡", else: "→"}
+              </span>
               <span class={["font-mono", suit_color(turn.winner.suit)]}>
                 {rank_label(turn.winner.rank)}{suit_symbol(turn.winner.suit)}
               </span>

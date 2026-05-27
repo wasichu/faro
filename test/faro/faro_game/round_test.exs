@@ -69,7 +69,10 @@ defmodule Faro.FaroGame.RoundTest do
 
     test "stores shuffled deck as card maps" do
       {_engine_round, deck, seed, commitment, client_seed, nonce} = run_full_engine_round()
-      {:ok, round} = FaroGame.create_round(round_attrs(deck, seed, commitment, client_seed, nonce))
+
+      {:ok, round} =
+        FaroGame.create_round(round_attrs(deck, seed, commitment, client_seed, nonce))
+
       first = hd(round.shuffled_deck)
       assert Map.has_key?(first, "rank")
       assert Map.has_key?(first, "suit")
@@ -87,7 +90,10 @@ defmodule Faro.FaroGame.RoundTest do
   describe "get/1" do
     test "reads back a round by id" do
       {_, deck, seed, commitment, client_seed, nonce} = run_full_engine_round()
-      {:ok, created} = FaroGame.create_round(round_attrs(deck, seed, commitment, client_seed, nonce))
+
+      {:ok, created} =
+        FaroGame.create_round(round_attrs(deck, seed, commitment, client_seed, nonce))
+
       assert {:ok, fetched} = FaroGame.get_round(created.id)
       assert fetched.id == created.id
       assert fetched.nonce == nonce
@@ -97,9 +103,15 @@ defmodule Faro.FaroGame.RoundTest do
   describe "update/2" do
     test "can reveal server seed after round completes" do
       {_, deck, seed, commitment, client_seed, nonce} = run_full_engine_round()
-      attrs = round_attrs(deck, seed, commitment, client_seed, nonce) |> Map.put(:server_seed, nil)
+
+      attrs =
+        round_attrs(deck, seed, commitment, client_seed, nonce) |> Map.put(:server_seed, nil)
+
       {:ok, round} = FaroGame.create_round(attrs)
-      assert {:ok, updated} = FaroGame.update_round(round, %{server_seed: seed, status: :finished})
+
+      assert {:ok, updated} =
+               FaroGame.update_round(round, %{server_seed: seed, status: :finished})
+
       assert updated.server_seed == seed
       assert updated.status == :finished
     end
@@ -112,7 +124,9 @@ defmodule Faro.FaroGame.RoundTest do
   describe "turn persistence" do
     test "persists turns for a round" do
       {engine_round, deck, seed, commitment, client_seed, nonce} = run_full_engine_round()
-      {:ok, db_round} = FaroGame.create_round(round_attrs(deck, seed, commitment, client_seed, nonce))
+
+      {:ok, db_round} =
+        FaroGame.create_round(round_attrs(deck, seed, commitment, client_seed, nonce))
 
       {completed_turn, _new_round} = EngineRound.deal_turn(engine_round, [])
 
@@ -135,7 +149,9 @@ defmodule Faro.FaroGame.RoundTest do
 
     test "persists bet and settlement maps" do
       {engine_round, deck, seed, commitment, client_seed, nonce} = run_full_engine_round()
-      {:ok, db_round} = FaroGame.create_round(round_attrs(deck, seed, commitment, client_seed, nonce))
+
+      {:ok, db_round} =
+        FaroGame.create_round(round_attrs(deck, seed, commitment, client_seed, nonce))
 
       bet = %Bet{rank: 5, amount: 1000, copper?: false}
       {completed_turn, _} = EngineRound.deal_turn(engine_round, [bet])
@@ -173,14 +189,18 @@ defmodule Faro.FaroGame.RoundTest do
         run_full_engine_round()
 
       {:ok, db_round} =
-        FaroGame.create_round(round_attrs(original_deck, server_seed, commitment, client_seed, nonce))
+        FaroGame.create_round(
+          round_attrs(original_deck, server_seed, commitment, client_seed, nonce)
+        )
 
       # Reload from DB and decode the deck
       {:ok, loaded} = FaroGame.get_round(db_round.id)
       decoded_deck = Serializer.decode_deck(loaded.shuffled_deck)
 
       # Reproduce the shuffle from the stored seeds
-      shuffle_seed = Fairness.derive_shuffle_seed(loaded.server_seed, loaded.client_seed, loaded.nonce)
+      shuffle_seed =
+        Fairness.derive_shuffle_seed(loaded.server_seed, loaded.client_seed, loaded.nonce)
+
       reproduced_deck = Shuffle.shuffle(Deck.new(), shuffle_seed)
 
       assert decoded_deck == reproduced_deck
@@ -193,7 +213,9 @@ defmodule Faro.FaroGame.RoundTest do
       finished_engine_round = deal_all_turns(engine_round)
 
       {:ok, db_round} =
-        FaroGame.create_round(round_attrs(original_deck, server_seed, commitment, client_seed, nonce))
+        FaroGame.create_round(
+          round_attrs(original_deck, server_seed, commitment, client_seed, nonce)
+        )
 
       # Persist all 25 turns
       for engine_turn <- finished_engine_round.turns do
@@ -236,11 +258,20 @@ defmodule Faro.FaroGame.RoundTest do
       finished_round = deal_all_turns(engine_round)
 
       audit =
-        Audit.from_round(finished_round, commitment, server_seed, client_seed, nonce, original_deck)
+        Audit.from_round(
+          finished_round,
+          commitment,
+          server_seed,
+          client_seed,
+          nonce,
+          original_deck
+        )
         |> Audit.verify_full()
 
       {:ok, db_round} =
-        FaroGame.create_round(round_attrs(original_deck, server_seed, commitment, client_seed, nonce))
+        FaroGame.create_round(
+          round_attrs(original_deck, server_seed, commitment, client_seed, nonce)
+        )
 
       assert {:ok, record} =
                AuditDomain.create_audit_record(%{
@@ -265,8 +296,13 @@ defmodule Faro.FaroGame.RoundTest do
     test "get_by_round returns the audit record" do
       {engine_round, deck, server_seed, commitment, client_seed, nonce} = run_full_engine_round()
       finished = deal_all_turns(engine_round)
-      audit = Audit.from_round(finished, commitment, server_seed, client_seed, nonce, deck) |> Audit.verify_full()
-      {:ok, db_round} = FaroGame.create_round(round_attrs(deck, server_seed, commitment, client_seed, nonce))
+
+      audit =
+        Audit.from_round(finished, commitment, server_seed, client_seed, nonce, deck)
+        |> Audit.verify_full()
+
+      {:ok, db_round} =
+        FaroGame.create_round(round_attrs(deck, server_seed, commitment, client_seed, nonce))
 
       AuditDomain.create_audit_record!(%{
         round_id: db_round.id,

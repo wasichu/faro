@@ -21,7 +21,7 @@ defmodule Faro.Audit.Record do
 
   postgres do
     table "audit_records"
-    repo Faro.Repo
+    repo(Faro.Repo)
   end
 
   actions do
@@ -83,14 +83,14 @@ defmodule Faro.Audit.Record do
     timestamps()
   end
 
-  identities do
-    identity :unique_round, [:round_id]
-  end
-
   relationships do
     belongs_to :round, Faro.FaroGame.Round do
       allow_nil? false
       public? true
     end
+  end
+
+  identities do
+    identity :unique_round, [:round_id]
   end
 end

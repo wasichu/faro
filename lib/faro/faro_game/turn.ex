@@ -16,11 +16,17 @@ defmodule Faro.FaroGame.Turn do
 
   postgres do
     table "game_turns"
-    repo Faro.Repo
+    repo(Faro.Repo)
   end
 
   actions do
     defaults [:read, :destroy, create: :*, update: :*]
+
+    read :by_round do
+      argument :round_id, :uuid, allow_nil?: false
+      filter expr(round_id == ^arg(:round_id))
+      prepare build(sort: [:index])
+    end
   end
 
   attributes do

@@ -41,13 +41,17 @@ defmodule Faro.FaroGame.Serializer do
   def encode_bet(%Bet{rank: rank, amount: amount, copper?: copper?}),
     do: %{"type" => "rank", "rank" => rank, "amount" => amount, "copper" => copper?}
 
-  def encode_bet(%CallTheTurnBet{predicted_loser: loser, predicted_winner: winner, amount: amount}),
-    do: %{
-      "type" => "ctt",
-      "predicted_loser" => loser,
-      "predicted_winner" => winner,
-      "amount" => amount
-    }
+  def encode_bet(%CallTheTurnBet{
+        predicted_loser: loser,
+        predicted_winner: winner,
+        amount: amount
+      }),
+      do: %{
+        "type" => "ctt",
+        "predicted_loser" => loser,
+        "predicted_winner" => winner,
+        "amount" => amount
+      }
 
   def encode_bet(%HighCardBet{amount: amount, copper?: copper?}),
     do: %{"type" => "high_card", "amount" => amount, "copper" => copper?}

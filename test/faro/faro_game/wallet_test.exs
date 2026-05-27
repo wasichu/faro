@@ -75,7 +75,8 @@ defmodule Faro.FaroGame.WalletTest do
       {:ok, updated} = Wallet.record_turn(wallet, turn, wallet.balance_sats)
 
       assert updated.balance_sats == wallet.balance_sats
-      assert length(ledger_entries(wallet)) == 1  # only the topup
+      # only the topup
+      assert length(ledger_entries(wallet)) == 1
     end
   end
 

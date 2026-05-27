@@ -78,6 +78,15 @@ defmodule FaroWeb.FairnessLive do
       </section>
 
       <section class="space-y-3">
+        <h2 class="font-serif text-xl font-semibold text-amber-300">Nonce</h2>
+        <p class="text-stone-300 leading-relaxed">
+          The nonce increments with each new round within a session. It ensures that
+          even if you reuse the same client seed, each round produces a different shuffle.
+          The nonce is visible in every audit transcript.
+        </p>
+      </section>
+
+      <section class="space-y-3">
         <h2 class="font-serif text-xl font-semibold text-amber-300">Algorithm Version</h2>
         <div class="rounded border border-stone-700 bg-stone-800 p-4">
           <span class="font-mono text-sm text-amber-300">faro-shuffle-v1</span>
@@ -86,6 +95,23 @@ defmodule FaroWeb.FairnessLive do
             changes will use a new version identifier, preserving the ability to verify
             historical rounds.
           </p>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <h2 class="font-serif text-xl font-semibold text-amber-300">Verify Yourself</h2>
+        <p class="text-stone-300 leading-relaxed">
+          After a round, you can copy the revealed server seed, your client seed, and nonce
+          from the audit panel and check them independently — here or using any
+          HMAC-SHA256 and SHA-256 tool.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <.link
+            navigate={~p"/audit/shuffle"}
+            class="rounded border border-amber-600 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-950"
+          >
+            Manual Shuffle Verifier →
+          </.link>
         </div>
       </section>
     </div>
