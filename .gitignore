@@ -35,3 +35,8 @@ faro-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Environment and secrets files — never commit these
+.env
+.env.*
+fly.toml
+
