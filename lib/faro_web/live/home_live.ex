@@ -9,9 +9,12 @@ defmodule FaroWeb.HomeLive do
     ~H"""
     <div class="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
       <div class="text-center">
-        <h1 class="font-serif text-5xl font-bold tracking-wide text-amber-400 sm:text-6xl">
-          Faro
-        </h1>
+        <div class="flex items-center justify-center gap-5">
+          <img src={~p"/images/tiger-king.png"} class="h-28 w-auto sm:h-36 drop-shadow-xl" alt="Tiger Jack of Spades"/>
+          <h1 class="font-serif text-5xl font-bold tracking-wide text-amber-400 sm:text-6xl">
+            Faro
+          </h1>
+        </div>
         <p class="mt-3 font-serif text-lg text-stone-400 italic">
           The Gentleman's Game of the American Frontier
         </p>
