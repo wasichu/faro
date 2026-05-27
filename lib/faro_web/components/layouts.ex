@@ -110,7 +110,9 @@ defmodule FaroWeb.Layouts do
       </main>
 
       <footer class="bg-stone-950 border-t border-amber-800/30 py-4 text-center text-stone-500 text-xs tracking-wide">
-        Provably fair · HMAC-SHA256 shuffle · All games verifiable on-chain
+        Provably fair · HMAC-SHA256 shuffle · All shuffles independently verifiable
+        <span class="mx-2">·</span>
+        <a href="https://github.com/wasichu/faro" target="_blank" rel="noopener noreferrer" class="hover:text-amber-500 transition-colors">GitHub</a>
       </footer>
     </div>
 
