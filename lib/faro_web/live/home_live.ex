@@ -14,6 +14,7 @@ defmodule FaroWeb.HomeLive do
           <h1 class="font-serif text-5xl font-bold tracking-wide text-amber-400 sm:text-6xl">
             Faro
           </h1>
+          <img src={~p"/images/tiger-queen.png"} class="h-28 w-auto sm:h-36 drop-shadow-xl" alt="Tiger Queen of Hearts"/>
         </div>
         <p class="mt-3 font-serif text-lg text-stone-400 italic">
           The Gentleman's Game of the American Frontier
