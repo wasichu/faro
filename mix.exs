@@ -107,7 +107,8 @@ defmodule Faro.MixProject do
         :elixir,
         :otp,
         :phoenix,
-        :ash
+        :ash,
+        :ash_postgres
       ]
     ]
   end

@@ -8,6 +8,7 @@ defmodule FaroWeb.PlayLive do
   alias Faro.FaroGame.Round, as: RoundRecord
   alias Faro.FaroGame.Turn, as: TurnRecord
   alias Faro.FaroGame.Serializer
+  alias Faro.FaroGame.Wallet
   alias Faro.Audit.Record, as: AuditRecord
 
   @starting_balance 1_000_000
@@ -20,10 +21,16 @@ defmodule FaroWeb.PlayLive do
         {:error, e} -> Logger.warning("GameSession creation failed: #{inspect(e)}"); nil
       end
 
+    {wallet, balance} =
+      case Wallet.create_with_topup(%{game_session_id: session_id}) do
+        {:ok, w} -> {w, w.balance_sats}
+        {:error, e} -> Logger.warning("Wallet creation failed: #{inspect(e)}"); {nil, @starting_balance}
+      end
+
     {:ok,
      socket
-     |> assign(page_title: "Play", session_id: session_id)
-     |> start_round(1, @starting_balance)}
+     |> assign(page_title: "Play", session_id: session_id, wallet: wallet)
+     |> start_round(1, balance)}
   end
 
   # ---------------------------------------------------------------------------
@@ -230,6 +237,12 @@ defmodule FaroWeb.PlayLive do
       persist_round_complete(db_round_id, server_seed, audit)
     end
 
+    updated_wallet =
+      record_wallet_turn(socket.assigns[:wallet], completed_turn, final_balance,
+        round_id: db_round_id,
+        turn_index: completed_turn.index
+      )
+
     # Reset CTT state when entering CTT phase; preserve slots after CTT deal (for result display)
     {new_ctt_slots, new_ctt_selected} =
       if new_round.phase == :call_the_turn,
@@ -240,6 +253,7 @@ defmodule FaroWeb.PlayLive do
      assign(socket,
        round: new_round,
        balance: final_balance,
+       wallet: updated_wallet,
        pending_bets: restored_bets,
        last_turn: completed_turn,
        last_settlements: completed_turn.settlements,
@@ -732,6 +746,17 @@ defmodule FaroWeb.PlayLive do
       ctt_amount: @default_bet,
       audit: nil
     )
+  end
+
+  defp record_wallet_turn(nil, _turn, _balance, _opts), do: nil
+
+  defp record_wallet_turn(wallet, completed_turn, balance, opts) do
+    case Wallet.record_turn(wallet, completed_turn, balance, opts) do
+      {:ok, updated} -> updated
+      {:error, e} ->
+        Logger.warning("Wallet recording failed: #{inspect(e)}")
+        wallet
+    end
   end
 
   defp persist_round_start(socket, shuffled_deck, commitment, client_seed, nonce) do

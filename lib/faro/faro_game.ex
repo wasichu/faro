@@ -16,5 +16,7 @@ defmodule Faro.FaroGame do
     resource Faro.FaroGame.GameSession
     resource Faro.FaroGame.Round
     resource Faro.FaroGame.Turn
+    resource Faro.FaroGame.Wallet
+    resource Faro.FaroGame.LedgerEntry
   end
 end
