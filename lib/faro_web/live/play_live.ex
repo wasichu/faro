@@ -259,6 +259,8 @@ defmodule FaroWeb.PlayLive do
         ctt_deal_enabled?(assigns.round.phase, assigns.ctt_slots, assigns.ctt_amount, assigns.balance)
       )
       |> assign(:hock_card, hock_card(assigns.round))
+      |> assign(:round_wagered, round_wagered(assigns.round))
+      |> assign(:round_net, round_net(assigns.round))
 
     ~H"""
     <div class="bg-green-950 min-h-full">
@@ -529,11 +531,34 @@ defmodule FaroWeb.PlayLive do
                 New Round
               </button>
             </div>
-            <p class="text-sm text-stone-300">
-              Final balance:
-              <span class="font-mono font-semibold text-amber-400">{format_sats(@balance)}</span>
-              sats
-            </p>
+            <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-stone-300">
+              <span>
+                Final balance:
+                <span class="font-mono font-semibold text-amber-400">{format_sats(@balance)}</span>
+                sats
+              </span>
+              <%= if @round_wagered > 0 do %>
+                <span>
+                  Wagered:
+                  <span class="font-mono font-semibold text-stone-200">{format_sats(@round_wagered)}</span>
+                  sats
+                </span>
+                <span>
+                  Net:
+                  <span class={[
+                    "font-mono font-semibold",
+                    cond do
+                      @round_net > 0 -> "text-green-400"
+                      @round_net < 0 -> "text-red-400"
+                      true -> "text-stone-400"
+                    end
+                  ]}>
+                    {if @round_net > 0, do: "+#{format_sats(@round_net)}", else: format_sats(@round_net)}
+                  </span>
+                  sats
+                </span>
+              <% end %>
+            </div>
           </div>
         <% end %>
 
@@ -680,6 +705,14 @@ defmodule FaroWeb.PlayLive do
 
   defp hock_card(round) do
     if round.phase == :finished and round.deck != [], do: hd(round.deck)
+  end
+
+  defp round_wagered(round) do
+    Enum.sum(for turn <- round.turns, s <- turn.settlements, do: s.bet.amount)
+  end
+
+  defp round_net(round) do
+    Enum.sum(for turn <- round.turns, s <- turn.settlements, do: s.net)
   end
 
   defp board_bets(pending_bets) do
