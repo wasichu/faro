@@ -92,13 +92,13 @@ defmodule FaroWeb.PlayLive do
 
   def handle_event("set_ctt_amount", %{"amount" => val}, socket) do
     case Integer.parse(val) do
-      {n, ""} when n > 0 -> {:noreply, assign(socket, ctt_amount: n)}
+      {n, ""} when n >= 0 -> {:noreply, assign(socket, ctt_amount: n)}
       _ -> {:noreply, socket}
     end
   end
 
   def handle_event("halve_ctt_amount", _params, socket) do
-    {:noreply, assign(socket, ctt_amount: max(1, div(socket.assigns.ctt_amount, 2)))}
+    {:noreply, assign(socket, ctt_amount: max(0, div(socket.assigns.ctt_amount, 2)))}
   end
 
   def handle_event("double_ctt_amount", _params, socket) do
@@ -112,6 +112,10 @@ defmodule FaroWeb.PlayLive do
     card = %Card{rank: rank, suit: suit}
     new_selected = if selected == card, do: nil, else: card
     {:noreply, assign(socket, ctt_selected: new_selected)}
+  end
+
+  def handle_event("skip_ctt", _params, socket) do
+    handle_event("deal_turn", %{}, assign(socket, ctt_slots: [nil, nil, nil]))
   end
 
   def handle_event("ctt_click_slot", %{"slot" => idx_str}, socket) do
@@ -394,7 +398,7 @@ defmodule FaroWeb.PlayLive do
                 </button>
                 <input
                   type="number"
-                  min="1"
+                  min="0"
                   value={@ctt_amount}
                   phx-change="set_ctt_amount"
                   phx-debounce="300"
@@ -409,6 +413,9 @@ defmodule FaroWeb.PlayLive do
                 </button>
               </div>
               <span class="text-xs text-stone-500">sats</span>
+              <%= if Enum.all?(@ctt_slots, &(&1 != nil)) and @ctt_amount == 0 do %>
+                <span class="text-xs text-stone-500">No bet — predict only</span>
+              <% end %>
               <%= if Enum.all?(@ctt_slots, &(&1 != nil)) and @ctt_amount > @balance do %>
                 <span class="text-xs text-red-400">Insufficient balance</span>
               <% end %>
@@ -477,11 +484,20 @@ defmodule FaroWeb.PlayLive do
                 {if @keep_bets?, do: "Repeating ✓", else: "Repeat Bets"}
               </button>
             <% end %>
+            <%= if @round.phase == :call_the_turn do %>
+              <button
+                phx-click="skip_ctt"
+                class="ml-auto rounded border border-stone-600 bg-stone-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400 transition-colors hover:border-stone-500 hover:text-stone-200"
+              >
+                Skip Final Bet
+              </button>
+            <% end %>
             <button
               phx-click="deal_turn"
               disabled={not @ctt_deal_enabled}
               class={[
-                "ml-auto rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                if(@round.phase == :call_the_turn, do: "", else: "ml-auto"),
                 if(@ctt_deal_enabled,
                   do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
                   else: "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
@@ -515,6 +531,11 @@ defmodule FaroWeb.PlayLive do
               <% end %>
             </ul>
           </div>
+        <% end %>
+
+        <%!-- Settlement results --%>
+        <%= if @last_settlements != [] do %>
+          <.settlement_list settlements={@last_settlements} />
         <% end %>
 
         <%!-- Round Complete --%>
@@ -573,11 +594,6 @@ defmodule FaroWeb.PlayLive do
           />
           <.recent_turns_list turns={@recent_turns} hock_card={@hock_card} />
         </div>
-
-        <%!-- Settlement results --%>
-        <%= if @last_settlements != [] do %>
-          <.settlement_list settlements={@last_settlements} />
-        <% end %>
 
         <%!-- Call the Turn result breakdown --%>
         <%= if @round.phase == :finished and @ctt_bets != [] do %>
@@ -698,7 +714,7 @@ defmodule FaroWeb.PlayLive do
 
   defp ctt_deal_enabled?(:call_the_turn, slots, amount, balance) do
     filled = Enum.count(slots, &(&1 != nil))
-    filled == 0 or (filled == 3 and amount > 0 and amount <= balance)
+    filled == 0 or (filled == 3 and (amount == 0 or amount <= balance))
   end
 
   defp ctt_deal_enabled?(_, _, _, _), do: true

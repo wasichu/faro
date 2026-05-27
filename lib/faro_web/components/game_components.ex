@@ -90,7 +90,7 @@ defmodule FaroWeb.GameComponents do
       <img
         src={card_path(@rank, :spades)}
         alt={rank_label(@rank)}
-        class="h-20 w-14 drop-shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:drop-shadow-lg"
+        class="h-32 w-24 drop-shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:drop-shadow-lg"
       />
       <div class="h-4 flex items-center justify-center">
         <%= if @bet do %>
@@ -138,7 +138,7 @@ defmodule FaroWeb.GameComponents do
       <img
         src={card_path(@rank, @suit)}
         alt={card_alt(@rank, @suit)}
-        class="h-24 w-16 drop-shadow-lg"
+        class="h-32 w-24 drop-shadow-lg"
       />
     </div>
     """
@@ -146,7 +146,7 @@ defmodule FaroWeb.GameComponents do
 
   def card_back(assigns) do
     ~H"""
-    <img src={card_back_path()} alt="card back" class="h-24 w-16 drop-shadow-md" />
+    <img src={card_back_path()} alt="card back" class="h-32 w-24 drop-shadow-md" />
     """
   end
 
@@ -452,10 +452,10 @@ defmodule FaroWeb.GameComponents do
   defp suit_symbol(:diamonds), do: "♦"
   defp suit_symbol(:clubs), do: "♣"
 
-  defp suit_color(:hearts), do: "text-red-600"
-  defp suit_color(:diamonds), do: "text-red-600"
-  defp suit_color(:spades), do: "text-stone-900"
-  defp suit_color(:clubs), do: "text-stone-900"
+  defp suit_color(:hearts), do: "text-rose-400"
+  defp suit_color(:diamonds), do: "text-rose-400"
+  defp suit_color(:spades), do: "text-stone-200"
+  defp suit_color(:clubs), do: "text-stone-200"
 
   # ---- Card asset paths ----
 
