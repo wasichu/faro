@@ -13,14 +13,19 @@ defmodule FaroWeb.PhilosophyLive do
       <section class="space-y-3">
         <h2 class="font-serif text-xl font-semibold text-amber-300">Why Faro?</h2>
         <p class="text-stone-300 leading-relaxed">
-          Faro dominated American gambling halls for nearly a century in part because, when honestly dealt, it offered players unusually favorable odds for a banking game.
-          On standard bets, the banker’s primary mathematical advantage came from doublets: when both revealed cards shared a rank and bets on that rank lost half their stake.
-          Compared to most gambling games of its era, Faro’s house edge was remarkably small, helping make it the game of frontier saloons, miners, and professional gamblers alike.
+          Faro dominated American gambling halls for nearly a century in part because, when
+          honestly dealt, it offered players unusually favorable odds for a banking game. The
+          banker’s primary mathematical advantage came from doublets: when both revealed cards
+          shared a rank and bets on that rank lost half their stake. Compared to most gambling
+          games of its era, Faro’s house edge was remarkably small, helping make it the game of
+          frontier saloons, miners, and professional gamblers alike.
         </p>
         <p class="text-stone-300 leading-relaxed">
-          We build Faro because it deserves a serious digital treatment. Not a novelty, not a
-          retro skin over a blackjack engine — but an accurate simulation of a real game with
-          a real history.
+          We built Faro because the game deserves a serious digital treatment: not a novelty, not
+          a casino caricature, and not a retro skin over blackjack, but a faithful recreation of
+          a real historical game. Faro is fast, strategic, and deeply tied to the flow of the deck
+          itself. Every revealed card changes the remaining odds. That makes it a natural fit for
+          transparent, auditable online play.
         </p>
       </section>
 
