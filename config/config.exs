@@ -55,7 +55,10 @@ config :faro, Oban,
   engine: Oban.Engines.Basic,
   repo: Faro.Repo,
   queues: [default: 10, maintenance: 5],
-  plugins: [{Oban.Plugins.Cron, []}]
+  plugins: [
+    {Oban.Plugins.Cron, []},
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}
+  ]
 
 # Retention thresholds for background cleanup jobs.
 # session_retention_hours: delete active (abandoned) sessions inactive for this long
