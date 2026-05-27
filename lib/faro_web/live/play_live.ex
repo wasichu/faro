@@ -1,7 +1,7 @@
 defmodule FaroWeb.PlayLive do
   use FaroWeb, :live_view
 
-  alias Faro.GameEngine.{Audit, Bet, CallTheTurnBet, Deck, Fairness, HighCardBet, Round, Shuffle}
+  alias Faro.GameEngine.{Audit, Bet, CallTheTurnBet, Card, Deck, Fairness, HighCardBet, Round, Shuffle}
 
   @starting_balance 1_000_000
   @default_bet 1_000
@@ -41,11 +41,14 @@ defmodule FaroWeb.PlayLive do
     existing = Enum.find_index(bets, &match?(%Bet{rank: ^rank}, &1))
 
     cond do
+      round.phase != :dealing ->
+        {:noreply, socket}
+
       existing != nil ->
         {removed, new_bets} = List.pop_at(bets, existing)
         {:noreply, assign(socket, pending_bets: new_bets, balance: balance + removed.amount)}
 
-      amount > balance or round.phase == :finished ->
+      amount > balance ->
         {:noreply, socket}
 
       true ->
@@ -61,11 +64,14 @@ defmodule FaroWeb.PlayLive do
     existing = Enum.find_index(bets, &match?(%HighCardBet{}, &1))
 
     cond do
+      round.phase != :dealing ->
+        {:noreply, socket}
+
       existing != nil ->
         {removed, new_bets} = List.pop_at(bets, existing)
         {:noreply, assign(socket, pending_bets: new_bets, balance: balance + removed.amount)}
 
-      amount > balance or round.phase == :finished ->
+      amount > balance ->
         {:noreply, socket}
 
       true ->
@@ -75,27 +81,13 @@ defmodule FaroWeb.PlayLive do
   end
 
   def handle_event("remove_bet", %{"index" => idx_str}, socket) do
-    idx = String.to_integer(idx_str)
-    {bet, new_bets} = List.pop_at(socket.assigns.pending_bets, idx)
-
-    {:noreply,
-     assign(socket, pending_bets: new_bets, balance: socket.assigns.balance + bet.amount)}
-  end
-
-  def handle_event("set_ctt_loser", %{"rank" => ""}, socket) do
-    {:noreply, assign(socket, ctt_loser: nil)}
-  end
-
-  def handle_event("set_ctt_loser", %{"rank" => rank_str}, socket) do
-    {:noreply, assign(socket, ctt_loser: String.to_integer(rank_str))}
-  end
-
-  def handle_event("set_ctt_winner", %{"rank" => ""}, socket) do
-    {:noreply, assign(socket, ctt_winner: nil)}
-  end
-
-  def handle_event("set_ctt_winner", %{"rank" => rank_str}, socket) do
-    {:noreply, assign(socket, ctt_winner: String.to_integer(rank_str))}
+    if socket.assigns.round.phase != :dealing do
+      {:noreply, socket}
+    else
+      idx = String.to_integer(idx_str)
+      {bet, new_bets} = List.pop_at(socket.assigns.pending_bets, idx)
+      {:noreply, assign(socket, pending_bets: new_bets, balance: socket.assigns.balance + bet.amount)}
+    end
   end
 
   def handle_event("set_ctt_amount", %{"amount" => val}, socket) do
@@ -105,20 +97,30 @@ defmodule FaroWeb.PlayLive do
     end
   end
 
-  def handle_event("place_ctt_bet", _params, socket) do
-    %{
-      balance: balance,
-      ctt_loser: loser,
-      ctt_winner: winner,
-      ctt_amount: amount,
-      pending_bets: bets
-    } = socket.assigns
+  def handle_event("ctt_select_card", %{"rank" => rank_str, "suit" => suit_str}, socket) do
+    %{ctt_selected: selected} = socket.assigns
+    rank = String.to_integer(rank_str)
+    suit = String.to_existing_atom(suit_str)
+    card = %Card{rank: rank, suit: suit}
+    new_selected = if selected == card, do: nil, else: card
+    {:noreply, assign(socket, ctt_selected: new_selected)}
+  end
 
-    if is_nil(loser) or is_nil(winner) or loser == winner or amount > balance do
-      {:noreply, socket}
-    else
-      bet = %CallTheTurnBet{predicted_loser: loser, predicted_winner: winner, amount: amount}
-      {:noreply, assign(socket, pending_bets: bets ++ [bet], balance: balance - amount)}
+  def handle_event("ctt_click_slot", %{"slot" => idx_str}, socket) do
+    %{ctt_selected: selected, ctt_slots: slots} = socket.assigns
+    idx = String.to_integer(idx_str)
+    current = Enum.at(slots, idx)
+
+    cond do
+      current != nil ->
+        {:noreply, assign(socket, ctt_slots: List.replace_at(slots, idx, nil))}
+
+      selected != nil ->
+        {:noreply,
+         assign(socket, ctt_slots: List.replace_at(slots, idx, selected), ctt_selected: nil)}
+
+      true ->
+        {:noreply, socket}
     end
   end
 
@@ -131,20 +133,41 @@ defmodule FaroWeb.PlayLive do
       server_seed: server_seed,
       commitment: commitment,
       client_seed: client_seed,
-      nonce: nonce
+      nonce: nonce,
+      balance: balance,
+      ctt_slots: ctt_slots,
+      ctt_amount: ctt_amount
     } = socket.assigns
 
-    {completed_turn, new_round} = Round.deal_turn(round, bets)
+    # For CTT phase: build bet from slots atomically at deal time
+    {bets_to_deal, pre_deal_balance} =
+      if round.phase == :call_the_turn do
+        [s1, s2, s3] = ctt_slots
 
-    # Return each bet's stake plus net gain/loss to balance
+        if s1 != nil and s2 != nil and s3 != nil and ctt_amount > 0 and ctt_amount <= balance do
+          ctt_bet = %CallTheTurnBet{
+            predicted_loser: s1.rank,
+            predicted_winner: s2.rank,
+            amount: ctt_amount
+          }
+
+          {[ctt_bet], balance - ctt_amount}
+        else
+          {[], balance}
+        end
+      else
+        {bets, balance}
+      end
+
+    {completed_turn, new_round} = Round.deal_turn(round, bets_to_deal)
+
     delta =
       Enum.reduce(completed_turn.settlements, 0, fn s, acc ->
         acc + s.bet.amount + s.net
       end)
 
-    post_deal_balance = socket.assigns.balance + delta
+    post_deal_balance = pre_deal_balance + delta
 
-    # Auto-restore non-CTT bets if keep mode is on and the round continues normally
     {restored_bets, final_balance, keep_bets?} =
       if keep_bets? and new_round.phase == :dealing do
         {bets, bal} =
@@ -158,7 +181,6 @@ defmodule FaroWeb.PlayLive do
 
         {bets, bal, true}
       else
-        # CTT phase reached — turn off keep mode automatically
         {[], post_deal_balance, false}
       end
 
@@ -168,6 +190,12 @@ defmodule FaroWeb.PlayLive do
         |> Audit.verify_full()
       end
 
+    # Reset CTT state when entering CTT phase; preserve slots after CTT deal (for result display)
+    {new_ctt_slots, new_ctt_selected} =
+      if new_round.phase == :call_the_turn,
+        do: {[nil, nil, nil], nil},
+        else: {ctt_slots, socket.assigns.ctt_selected}
+
     {:noreply,
      assign(socket,
        round: new_round,
@@ -176,7 +204,9 @@ defmodule FaroWeb.PlayLive do
        last_turn: completed_turn,
        last_settlements: completed_turn.settlements,
        keep_bets?: keep_bets?,
-       audit: audit
+       audit: audit,
+       ctt_slots: new_ctt_slots,
+       ctt_selected: new_ctt_selected
      )}
   end
 
@@ -199,7 +229,10 @@ defmodule FaroWeb.PlayLive do
       |> assign(:high_card_bet_pending, pending_high_card_bet(assigns.pending_bets))
       |> assign(:turns_dealt, length(assigns.round.turns))
       |> assign(:next_turn, length(assigns.round.turns) + 1)
-      |> assign(:remaining, length(assigns.round.deck))
+      |> assign(
+        :remaining,
+        if(assigns.round.phase == :finished, do: 0, else: length(assigns.round.deck))
+      )
       |> assign(:recent_turns, assigns.round.turns |> Enum.take(-5) |> Enum.reverse())
       |> assign(
         :repeat_disabled,
@@ -212,6 +245,12 @@ defmodule FaroWeb.PlayLive do
           else: []
         )
       )
+      |> assign(:ctt_available, ctt_available_cards(assigns.round, assigns.ctt_slots))
+      |> assign(
+        :ctt_deal_enabled,
+        ctt_deal_enabled?(assigns.round.phase, assigns.ctt_slots, assigns.ctt_amount, assigns.balance)
+      )
+      |> assign(:hock_card, hock_card(assigns.round))
 
     ~H"""
     <div class="bg-green-950 min-h-full">
@@ -321,7 +360,14 @@ defmodule FaroWeb.PlayLive do
             <% end %>
             <button
               phx-click="deal_turn"
-              class="ml-auto rounded border border-amber-600 bg-amber-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-950 transition-colors hover:bg-amber-600"
+              disabled={not @ctt_deal_enabled}
+              class={[
+                "ml-auto rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                if(@ctt_deal_enabled,
+                  do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
+                  else: "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
+                )
+              ]}
             >
               Deal Turn
             </button>
@@ -330,75 +376,95 @@ defmodule FaroWeb.PlayLive do
 
         <%!-- Call the Turn area --%>
         <%= if @round.phase == :call_the_turn do %>
-          <div class="rounded-lg border border-amber-600 bg-amber-950/30 p-4 space-y-4">
+          <div class="rounded-lg border border-amber-600 bg-amber-950/30 p-4 space-y-5">
             <div>
               <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">
-                Turn {@next_turn} · Call the Turn
+                Call the Turn — Final Three Cards
               </h3>
               <p class="mt-1 text-xs text-stone-400">
-                Three cards remain. Predict the exact order to win 4:1. Two of a kind pays 1:1.
+                Click a card to select it, then click a slot to place it. Predict the exact order to win 4:1; two of a kind pays 1:1. Leave slots empty to deal without betting.
               </p>
             </div>
 
-            <div class="flex items-center gap-4">
-              <span class="text-xs uppercase tracking-widest text-stone-500">Remaining</span>
-              <%= for card <- @round.deck do %>
-                <span class={["font-mono text-lg font-bold leading-none", suit_color(card.suit)]}>
-                  {rank_label(card.rank)}{suit_symbol(card.suit)}
-                </span>
-              <% end %>
+            <%!-- Available cards --%>
+            <div>
+              <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">Available Cards</div>
+              <div class="flex gap-3">
+                <%= for card <- @ctt_available do %>
+                  <div
+                    class={[
+                      "cursor-pointer transition-all duration-150",
+                      if(@ctt_selected == card, do: "-translate-y-2", else: "hover:-translate-y-1")
+                    ]}
+                    phx-click="ctt_select_card"
+                    phx-value-rank={card.rank}
+                    phx-value-suit={card.suit}
+                  >
+                    <div class={[
+                      "rounded-lg overflow-hidden",
+                      if(@ctt_selected == card, do: "ring-2 ring-amber-400", else: "")
+                    ]}>
+                      <.playing_card rank={card.rank} suit={card.suit} />
+                    </div>
+                  </div>
+                <% end %>
+              </div>
             </div>
 
+            <%!-- Prediction slots --%>
+            <div>
+              <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">Predicted Order</div>
+              <div class="flex gap-4">
+                <%= for {slot_card, idx} <- Enum.with_index(@ctt_slots) do %>
+                  <div class="flex flex-col items-center gap-1">
+                    <span class="text-xs text-stone-400">
+                      {case idx do
+                        0 -> "1st · Banker"
+                        1 -> "2nd · Player"
+                        _ -> "3rd · Hock"
+                      end}
+                    </span>
+                    <div
+                      class={[
+                        "rounded-lg border-2 cursor-pointer transition-colors overflow-hidden",
+                        if(slot_card != nil,
+                          do: "border-amber-500",
+                          else:
+                            "border-dashed border-stone-600 bg-stone-800/50 hover:border-amber-600"
+                        )
+                      ]}
+                      phx-click="ctt_click_slot"
+                      phx-value-slot={idx}
+                    >
+                      <%= if slot_card != nil do %>
+                        <.playing_card rank={slot_card.rank} suit={slot_card.suit} />
+                      <% else %>
+                        <div class="h-24 w-16 flex items-center justify-center">
+                          <span class="text-2xl font-bold text-stone-600">{idx + 1}</span>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+
+            <%!-- Bet amount --%>
             <div class="flex flex-wrap items-center gap-3">
-              <div class="flex items-center gap-2">
-                <span class="text-xs text-stone-400">Banker loses</span>
-                <select
-                  phx-change="set_ctt_loser"
-                  name="rank"
-                  class="rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-                >
-                  <option value="">—</option>
-                  <%= for card <- @round.deck do %>
-                    <option value={card.rank} selected={@ctt_loser == card.rank}>
-                      {rank_label(card.rank)}{suit_symbol(card.suit)}
-                    </option>
-                  <% end %>
-                </select>
-              </div>
-              <span class="text-stone-500">→</span>
-              <div class="flex items-center gap-2">
-                <span class="text-xs text-stone-400">Player wins</span>
-                <select
-                  phx-change="set_ctt_winner"
-                  name="rank"
-                  class="rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-                >
-                  <option value="">—</option>
-                  <%= for card <- @round.deck do %>
-                    <option value={card.rank} selected={@ctt_winner == card.rank}>
-                      {rank_label(card.rank)}{suit_symbol(card.suit)}
-                    </option>
-                  <% end %>
-                </select>
-              </div>
-              <div class="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  value={@ctt_amount}
-                  phx-change="set_ctt_amount"
-                  phx-debounce="300"
-                  name="amount"
-                  class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-                />
-                <span class="text-xs text-stone-500">sats</span>
-              </div>
-              <button
-                phx-click="place_ctt_bet"
-                class="rounded border border-amber-600 bg-amber-800 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-100 transition-colors hover:bg-amber-700"
-              >
-                Place Bet
-              </button>
+              <span class="text-xs text-stone-400">Bet Amount</span>
+              <input
+                type="number"
+                min="1"
+                value={@ctt_amount}
+                phx-change="set_ctt_amount"
+                phx-debounce="300"
+                name="amount"
+                class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
+              />
+              <span class="text-xs text-stone-500">sats</span>
+              <%= if Enum.all?(@ctt_slots, &(&1 != nil)) and @ctt_amount > @balance do %>
+                <span class="text-xs text-red-400">Insufficient balance</span>
+              <% end %>
             </div>
           </div>
         <% end %>
@@ -431,10 +497,11 @@ defmodule FaroWeb.PlayLive do
           <.current_turn_display
             banker_card={if @last_turn, do: @last_turn.loser}
             player_card={if @last_turn, do: @last_turn.winner}
+            hock_card={@hock_card}
             turn_number={if @last_turn, do: @last_turn.index}
             split?={if @last_turn, do: @last_turn.split?, else: false}
           />
-          <.recent_turns_list turns={@recent_turns} />
+          <.recent_turns_list turns={@recent_turns} hock_card={@hock_card} />
         </div>
 
         <%!-- Settlement results --%>
@@ -444,45 +511,63 @@ defmodule FaroWeb.PlayLive do
 
         <%!-- Call the Turn result breakdown --%>
         <%= if @round.phase == :finished and @ctt_bets != [] do %>
-          <div class="rounded-lg border border-amber-600/40 bg-stone-900 p-4 space-y-3">
+          <div class="rounded-lg border border-amber-600/40 bg-stone-900 p-4 space-y-4">
             <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">
               Call the Turn — Result
             </h3>
-            <div>
-              <div class="mb-1 text-xs text-stone-500">Actual order dealt</div>
-              <div class="flex items-center gap-2">
-                <span class={["font-mono text-base font-bold", suit_color(@last_turn.loser.suit)]}>
-                  {rank_label(@last_turn.loser.rank)}{suit_symbol(@last_turn.loser.suit)}
-                </span>
-                <span class="text-stone-500 text-sm">Banker</span>
-                <span class="text-stone-500">→</span>
-                <span class={["font-mono text-base font-bold", suit_color(@last_turn.winner.suit)]}>
-                  {rank_label(@last_turn.winner.rank)}{suit_symbol(@last_turn.winner.suit)}
-                </span>
-                <span class="text-stone-500 text-sm">Player</span>
-                <%= if @round.deck != [] do %>
-                  <span class="text-stone-500">→</span>
-                  <span class={["font-mono text-base font-bold", suit_color(hd(@round.deck).suit)]}>
-                    {rank_label(hd(@round.deck).rank)}{suit_symbol(hd(@round.deck).suit)}
-                  </span>
-                  <span class="text-stone-500 text-sm">Hock</span>
-                <% end %>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <div class="mb-2 text-xs text-stone-500">Your Prediction</div>
+                <div class="flex gap-3">
+                  <%= for {slot_card, idx} <- Enum.with_index(@ctt_slots) do %>
+                    <%= if slot_card do %>
+                      <.playing_card
+                        rank={slot_card.rank}
+                        suit={slot_card.suit}
+                        label={case idx do
+                          0 -> "Banker"
+                          1 -> "Player"
+                          _ -> "Hock"
+                        end}
+                      />
+                    <% end %>
+                  <% end %>
+                </div>
+              </div>
+
+              <div>
+                <div class="mb-2 text-xs text-stone-500">Actual Order</div>
+                <div class="flex gap-3">
+                  <.playing_card
+                    rank={@last_turn.loser.rank}
+                    suit={@last_turn.loser.suit}
+                    label="Banker"
+                  />
+                  <.playing_card
+                    rank={@last_turn.winner.rank}
+                    suit={@last_turn.winner.suit}
+                    label="Player"
+                  />
+                  <%= if @hock_card do %>
+                    <.playing_card rank={@hock_card.rank} suit={@hock_card.suit} label="Hock" />
+                  <% end %>
+                </div>
               </div>
             </div>
+
             <ul class="space-y-1">
               <%= for bet <- @ctt_bets do %>
                 <li class="flex items-center gap-3 text-sm">
-                  <span class="text-stone-400">Predicted:</span>
-                  <span class="font-mono text-stone-200">
-                    Banker {rank_label(bet.predicted_loser)} → Player {rank_label(
-                      bet.predicted_winner
-                    )}
-                  </span>
-                  <%= if bet.predicted_loser == @last_turn.loser.rank and bet.predicted_winner == @last_turn.winner.rank do %>
-                    <span class="text-green-400 text-xs font-semibold">✓ Correct</span>
+                  <%= if bet.predicted_loser == @last_turn.loser.rank and
+                          bet.predicted_winner == @last_turn.winner.rank do %>
+                    <span class="text-green-400 font-semibold">✓ Correct</span>
                   <% else %>
-                    <span class="text-red-400 text-xs font-semibold">✗ Wrong order</span>
+                    <span class="text-red-400 font-semibold">✗ Wrong order</span>
                   <% end %>
+                  <span class="text-xs text-stone-500">
+                    Predicted Banker {rank_label(bet.predicted_loser)} → Player {rank_label(bet.predicted_winner)}
+                  </span>
                 </li>
               <% end %>
             </ul>
@@ -551,11 +636,31 @@ defmodule FaroWeb.PlayLive do
       bet_amount: @default_bet,
       copper?: false,
       keep_bets?: Map.get(socket.assigns, :keep_bets?, false),
-      ctt_loser: nil,
-      ctt_winner: nil,
+      ctt_slots: [nil, nil, nil],
+      ctt_selected: nil,
       ctt_amount: @default_bet,
       audit: nil
     )
+  end
+
+  defp ctt_available_cards(round, slots) do
+    if round.phase == :call_the_turn do
+      placed = MapSet.new(Enum.reject(slots, &is_nil/1))
+      Enum.reject(round.deck, &MapSet.member?(placed, &1))
+    else
+      []
+    end
+  end
+
+  defp ctt_deal_enabled?(:call_the_turn, slots, amount, balance) do
+    filled = Enum.count(slots, &(&1 != nil))
+    filled == 0 or (filled == 3 and amount > 0 and amount <= balance)
+  end
+
+  defp ctt_deal_enabled?(_, _, _, _), do: true
+
+  defp hock_card(round) do
+    if round.phase == :finished and round.deck != [], do: hd(round.deck)
   end
 
   defp board_bets(pending_bets) do

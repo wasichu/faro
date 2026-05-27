@@ -156,6 +156,7 @@ defmodule FaroWeb.GameComponents do
 
   attr :banker_card, :map, default: nil
   attr :player_card, :map, default: nil
+  attr :hock_card, :map, default: nil
   attr :turn_number, :integer, default: nil
   attr :split?, :boolean, default: false
 
@@ -185,6 +186,10 @@ defmodule FaroWeb.GameComponents do
             <.card_back />
           <% end %>
         </div>
+        <%= if @hock_card do %>
+          <div class="mb-8 text-xl text-stone-500">→</div>
+          <.playing_card rank={@hock_card.rank} suit={@hock_card.suit} label="Hock" />
+        <% end %>
       </div>
       <%= if @split? do %>
         <p class="mt-2 text-xs text-orange-400">Split — banker takes half</p>
@@ -198,6 +203,7 @@ defmodule FaroWeb.GameComponents do
   # ---------------------------------------------------------------------------
 
   attr :turns, :list, default: []
+  attr :hock_card, :map, default: nil
 
   def recent_turns_list(assigns) do
     ~H"""
@@ -217,6 +223,13 @@ defmodule FaroWeb.GameComponents do
               <span class={["font-mono", suit_color(turn.winner.suit)]}>
                 {rank_label(turn.winner.rank)}{suit_symbol(turn.winner.suit)}
               </span>
+              <%= if turn.index == 25 and @hock_card do %>
+                <span class="text-stone-500">→</span>
+                <span class={["font-mono", suit_color(@hock_card.suit)]}>
+                  {rank_label(@hock_card.rank)}{suit_symbol(@hock_card.suit)}
+                </span>
+                <span class="text-[10px] text-stone-500 uppercase">hock</span>
+              <% end %>
               <%= if turn.split? do %>
                 <span class="text-[10px] text-orange-400 uppercase">split</span>
               <% end %>
