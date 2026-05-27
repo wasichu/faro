@@ -914,7 +914,8 @@ defmodule FaroWeb.PlayLive do
               <div class="flex items-center gap-3">
                 <%= if @db_round_id do %>
                   <.link
-                    navigate={~p"/audit/rounds/#{@db_round_id}"}
+                    href={~p"/audit/rounds/#{@db_round_id}"}
+                    target="_blank"
                     class="rounded border border-stone-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-300 transition-colors hover:border-amber-600 hover:text-amber-400"
                   >
                     Audit Round
