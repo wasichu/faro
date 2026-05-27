@@ -211,12 +211,13 @@ defmodule FaroWeb.GameComponents do
     <% else %>
       <ol class="space-y-1.5">
         <%= for turn <- @turns do %>
+          <% ctt_turn? = turn.index == 25 and @hock_card != nil %>
+          <% net = Enum.sum(Enum.map(turn.settlements, & &1.net)) %>
           <li class="flex items-center gap-2 text-sm">
             <span class="w-6 text-right text-xs text-stone-500">T{turn.index}</span>
             <span class={["font-mono", suit_color(turn.loser.suit)]}>
               {rank_label(turn.loser.rank)}{suit_symbol(turn.loser.suit)}
             </span>
-            <% ctt_turn? = turn.index == 25 and @hock_card != nil %>
             <span class="text-stone-500">
               {if turn.split? and not ctt_turn?, do: "≡", else: "→"}
             </span>
@@ -229,6 +230,22 @@ defmodule FaroWeb.GameComponents do
                 {rank_label(@hock_card.rank)}{suit_symbol(@hock_card.suit)}
               </span>
               <span class="text-[10px] text-stone-500 uppercase">hock</span>
+            <% end %>
+            <%= if turn.settlements != [] do %>
+              <span class={[
+                "ml-auto font-mono text-xs font-semibold",
+                cond do
+                  net > 0 -> "text-green-400"
+                  net < 0 -> "text-red-400"
+                  true -> "text-stone-500"
+                end
+              ]}>
+                {cond do
+                  net > 0 -> "+#{format_sats(net)}"
+                  net < 0 -> format_sats(net)
+                  true -> "push"
+                end}
+              </span>
             <% end %>
           </li>
         <% end %>

@@ -774,6 +774,22 @@ defmodule FaroWeb.PlayLive do
           </div>
         <% end %>
 
+        <%!-- Last turn + recent turns --%>
+        <div class="rounded-lg border border-stone-700 bg-stone-800 flex divide-x divide-stone-700">
+          <div class="p-4 flex-shrink-0">
+            <.current_turn_display
+              banker_card={if @last_turn, do: @last_turn.loser}
+              player_card={if @last_turn, do: @last_turn.winner}
+              hock_card={@hock_card}
+              turn_number={if @last_turn, do: @last_turn.index}
+              split?={@last_turn != nil and @last_turn.split? and @round.phase != :finished}
+            />
+          </div>
+          <div class="p-4 flex-1 min-w-0">
+            <.recent_turns_list turns={@recent_turns} hock_card={@hock_card} />
+          </div>
+        </div>
+
         <%!-- Round Complete --%>
         <%= if @round.phase == :finished do %>
           <div class="rounded-lg border border-amber-700/50 bg-stone-900 p-4 space-y-3">
@@ -1001,22 +1017,6 @@ defmodule FaroWeb.PlayLive do
             </ul>
           </div>
         <% end %>
-
-        <%!-- Last turn + recent turns --%>
-        <div class="rounded-lg border border-stone-700 bg-stone-800 flex divide-x divide-stone-700">
-          <div class="p-4 flex-shrink-0">
-            <.current_turn_display
-              banker_card={if @last_turn, do: @last_turn.loser}
-              player_card={if @last_turn, do: @last_turn.winner}
-              hock_card={@hock_card}
-              turn_number={if @last_turn, do: @last_turn.index}
-              split?={@last_turn != nil and @last_turn.split? and @round.phase != :finished}
-            />
-          </div>
-          <div class="p-4 flex-1 min-w-0">
-            <.recent_turns_list turns={@recent_turns} hock_card={@hock_card} />
-          </div>
-        </div>
 
         <.casekeeper_display seen={@round.casekeeper.seen} />
 
