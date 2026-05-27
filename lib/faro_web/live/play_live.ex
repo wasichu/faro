@@ -203,6 +203,24 @@ defmodule FaroWeb.PlayLive do
     end
   end
 
+  def handle_event("ctt_drop_card", %{"rank" => rank_str, "suit" => suit_str, "slot" => slot_str}, socket) do
+    if socket.assigns.ctt_placed_bet != nil do
+      {:noreply, socket}
+    else
+      rank = String.to_integer(rank_str)
+      suit = String.to_existing_atom(suit_str)
+      idx = String.to_integer(slot_str)
+      card = %Card{rank: rank, suit: suit}
+
+      new_slots =
+        socket.assigns.ctt_slots
+        |> Enum.map(fn c -> if c == card, do: nil, else: c end)
+        |> List.replace_at(idx, card)
+
+      {:noreply, assign(socket, ctt_slots: new_slots, ctt_selected: nil)}
+    end
+  end
+
   def handle_event("deal_turn", _params, socket) do
     %{
       round: round,
@@ -528,7 +546,7 @@ defmodule FaroWeb.PlayLive do
             </div>
 
             <%!-- Available cards + Predicted Order — side by side on wider viewports --%>
-            <div class="flex flex-col sm:flex-row gap-6">
+            <div class="flex flex-col sm:flex-row gap-6" id="ctt-area" phx-hook="CttDragDrop">
               <div>
                 <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">
                   Available Cards
@@ -537,9 +555,13 @@ defmodule FaroWeb.PlayLive do
                   <%= for card <- @ctt_available do %>
                     <div
                       class={[
-                        "cursor-pointer transition-all duration-150",
+                        "cursor-grab transition-all duration-150",
                         if(@ctt_selected == card, do: "-translate-y-2", else: "hover:-translate-y-1")
                       ]}
+                      draggable="true"
+                      data-ctt-card="true"
+                      data-rank={card.rank}
+                      data-suit={card.suit}
                       phx-click="ctt_select_card"
                       phx-value-rank={card.rank}
                       phx-value-suit={card.suit}
@@ -578,6 +600,7 @@ defmodule FaroWeb.PlayLive do
                               "border-dashed border-stone-600 bg-stone-800/50 hover:border-amber-600"
                           )
                         ]}
+                        data-ctt-slot={idx}
                         phx-click="ctt_click_slot"
                         phx-value-slot={idx}
                       >
@@ -701,6 +724,21 @@ defmodule FaroWeb.PlayLive do
                 {if @keep_bets?, do: "Repeating Bets ✓", else: "Repeat Bets"}
               </button>
             <% end %>
+            <%= if @round.phase == :dealing and @last_settlements != [] do %>
+              <% last_net = Enum.sum(Enum.map(@last_settlements, & &1.net)) %>
+              <div class={[
+                "ml-auto font-mono text-sm font-semibold",
+                cond do
+                  last_net > 0 -> "text-green-400"
+                  last_net < 0 -> "text-red-400"
+                  true -> "text-stone-500"
+                end
+              ]}>
+                {if last_net == 0,
+                  do: "push",
+                  else: "#{if last_net > 0, do: "+"}#{format_sats(last_net)} sats"}
+              </div>
+            <% end %>
             <%= if @round.phase == :call_the_turn do %>
               <div class="flex-1"></div>
               <%= if @ctt_placed_bet == nil and Enum.all?(@ctt_slots, &(&1 != nil)) and @ctt_amount > 0 do %>
@@ -724,7 +762,7 @@ defmodule FaroWeb.PlayLive do
               disabled={not @ctt_deal_enabled}
               class={[
                 "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                if(@round.phase != :call_the_turn, do: "ml-auto", else: ""),
+                if(@round.phase != :call_the_turn and @last_settlements == [], do: "ml-auto", else: ""),
                 if(@ctt_deal_enabled,
                   do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
                   else: "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
@@ -733,6 +771,66 @@ defmodule FaroWeb.PlayLive do
             >
               Deal Turn
             </button>
+          </div>
+        <% end %>
+
+        <%!-- Round Complete --%>
+        <%= if @round.phase == :finished do %>
+          <div class="rounded-lg border border-amber-700/50 bg-stone-900 p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold uppercase tracking-widest text-amber-400">
+                Round Complete
+              </h3>
+              <div class="flex items-center gap-3">
+                <%= if @db_round_id do %>
+                  <.link
+                    href={~p"/audit/rounds/#{@db_round_id}"}
+                    target="_blank"
+                    class="rounded border border-stone-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-300 transition-colors hover:border-amber-600 hover:text-amber-400"
+                  >
+                    Audit Round
+                  </.link>
+                <% end %>
+                <button
+                  phx-click="new_round"
+                  class="rounded border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-950 transition-colors hover:bg-amber-500"
+                >
+                  New Round
+                </button>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-stone-300">
+              <span>
+                Final balance:
+                <span class="font-mono font-semibold text-amber-400">{format_sats(@balance)}</span>
+                sats
+              </span>
+              <%= if @round_wagered > 0 do %>
+                <span>
+                  Wagered:
+                  <span class="font-mono font-semibold text-stone-200">
+                    {format_sats(@round_wagered)}
+                  </span>
+                  sats
+                </span>
+                <span>
+                  Net:
+                  <span class={[
+                    "font-mono font-semibold",
+                    cond do
+                      @round_net > 0 -> "text-green-400"
+                      @round_net < 0 -> "text-red-400"
+                      true -> "text-stone-400"
+                    end
+                  ]}>
+                    {if @round_net > 0,
+                      do: "+#{format_sats(@round_net)}",
+                      else: format_sats(@round_net)}
+                  </span>
+                  sats
+                </span>
+              <% end %>
+            </div>
           </div>
         <% end %>
 
@@ -901,66 +999,6 @@ defmodule FaroWeb.PlayLive do
                 </li>
               <% end %>
             </ul>
-          </div>
-        <% end %>
-
-        <%!-- Round Complete --%>
-        <%= if @round.phase == :finished do %>
-          <div class="rounded-lg border border-amber-700/50 bg-stone-900 p-4 space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold uppercase tracking-widest text-amber-400">
-                Round Complete
-              </h3>
-              <div class="flex items-center gap-3">
-                <%= if @db_round_id do %>
-                  <.link
-                    href={~p"/audit/rounds/#{@db_round_id}"}
-                    target="_blank"
-                    class="rounded border border-stone-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-300 transition-colors hover:border-amber-600 hover:text-amber-400"
-                  >
-                    Audit Round
-                  </.link>
-                <% end %>
-                <button
-                  phx-click="new_round"
-                  class="rounded border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-950 transition-colors hover:bg-amber-500"
-                >
-                  New Round
-                </button>
-              </div>
-            </div>
-            <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-stone-300">
-              <span>
-                Final balance:
-                <span class="font-mono font-semibold text-amber-400">{format_sats(@balance)}</span>
-                sats
-              </span>
-              <%= if @round_wagered > 0 do %>
-                <span>
-                  Wagered:
-                  <span class="font-mono font-semibold text-stone-200">
-                    {format_sats(@round_wagered)}
-                  </span>
-                  sats
-                </span>
-                <span>
-                  Net:
-                  <span class={[
-                    "font-mono font-semibold",
-                    cond do
-                      @round_net > 0 -> "text-green-400"
-                      @round_net < 0 -> "text-red-400"
-                      true -> "text-stone-400"
-                    end
-                  ]}>
-                    {if @round_net > 0,
-                      do: "+#{format_sats(@round_net)}",
-                      else: format_sats(@round_net)}
-                  </span>
-                  sats
-                </span>
-              <% end %>
-            </div>
           </div>
         <% end %>
 

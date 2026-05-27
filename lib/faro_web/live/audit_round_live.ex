@@ -132,14 +132,13 @@ defmodule FaroWeb.AuditRoundLive do
                   <th class="px-3 py-2 text-left">#</th>
                   <th class="px-3 py-2 text-left">Banker</th>
                   <th class="px-3 py-2 text-left">Player</th>
-                  <th class="px-3 py-2 text-left">Split</th>
                   <th class="px-3 py-2 text-left">Bets</th>
                   <th class="px-3 py-2 text-left">Settlements</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-stone-700/50">
                 <%= for turn <- @turns do %>
-                  <tr class={if turn.split, do: "bg-amber-950/20"}>
+                  <tr>
                     <td class="px-3 py-2 font-mono text-xs text-stone-500">{turn.index}</td>
                     <td class="px-3 py-2">
                       <span class={["font-mono font-semibold", suit_color(turn.loser_suit)]}>
@@ -152,14 +151,7 @@ defmodule FaroWeb.AuditRoundLive do
                       </span>
                     </td>
                     <td class="px-3 py-2 text-xs">
-                      <%= if turn.split do %>
-                        <span class="text-amber-400 font-semibold">Split</span>
-                      <% else %>
-                        <span class="text-stone-600">—</span>
-                      <% end %>
-                    </td>
-                    <td class="px-3 py-2 text-xs text-stone-400">
-                      {length(turn.bets)} bet{if length(turn.bets) != 1, do: "s"}
+                      <.bet_list bets={turn.bets} />
                     </td>
                     <td class="px-3 py-2 text-xs">
                       <.settlement_summary settlements={turn.settlements} />
@@ -338,6 +330,24 @@ defmodule FaroWeb.AuditRoundLive do
     """
   end
 
+  attr :bets, :list, required: true
+
+  defp bet_list(%{bets: []} = assigns) do
+    ~H"""
+    <span class="text-stone-600">—</span>
+    """
+  end
+
+  defp bet_list(assigns) do
+    ~H"""
+    <div class="space-y-0.5">
+      <%= for bet <- @bets do %>
+        <div class="text-stone-300">{bet_description(bet)}</div>
+      <% end %>
+    </div>
+    """
+  end
+
   attr :settlements, :list, required: true
 
   defp settlement_summary(%{settlements: []} = assigns) do
@@ -348,14 +358,13 @@ defmodule FaroWeb.AuditRoundLive do
 
   defp settlement_summary(assigns) do
     ~H"""
-    <span class="text-stone-400">
-      {Enum.map_join(@settlements, ", ", fn s ->
-        outcome = s["outcome"] || "?"
-        net = s["net"] || 0
-        prefix = if net > 0, do: "+", else: ""
-        "#{outcome} #{prefix}#{net}"
-      end)}
-    </span>
+    <div class="space-y-0.5">
+      <%= for s <- @settlements do %>
+        <div class={settlement_color(s["outcome"])}>
+          {settlement_label(s["outcome"], s["net"])}
+        </div>
+      <% end %>
+    </div>
     """
   end
 
@@ -471,4 +480,36 @@ defmodule FaroWeb.AuditRoundLive do
   defp suit_color("diamonds"), do: "text-rose-400"
   defp suit_color("spades"), do: "text-stone-200"
   defp suit_color("clubs"), do: "text-stone-200"
+
+  defp bet_description(%{"type" => "rank", "rank" => rank, "amount" => amount, "copper" => true}),
+    do: "copper #{rank_label(rank)} ×#{amount}"
+
+  defp bet_description(%{"type" => "rank", "rank" => rank, "amount" => amount}),
+    do: "#{rank_label(rank)} ×#{amount}"
+
+  defp bet_description(%{
+         "type" => "ctt",
+         "predicted_loser" => loser,
+         "predicted_winner" => winner,
+         "amount" => amount
+       }),
+       do: "CTT #{rank_label(loser)}→#{rank_label(winner)} ×#{amount}"
+
+  defp bet_description(%{"type" => "high_card", "amount" => amount, "copper" => true}),
+    do: "copper High Card ×#{amount}"
+
+  defp bet_description(%{"type" => "high_card", "amount" => amount}),
+    do: "High Card ×#{amount}"
+
+  defp bet_description(_), do: "?"
+
+  defp settlement_color("win"), do: "text-green-400"
+  defp settlement_color("loss"), do: "text-red-400"
+  defp settlement_color("split"), do: "text-amber-400"
+  defp settlement_color(_), do: "text-stone-400"
+
+  defp settlement_label(outcome, net) do
+    prefix = if net > 0, do: "+", else: ""
+    "#{outcome} #{prefix}#{net}"
+  end
 end

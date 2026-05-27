@@ -25,11 +25,44 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/faro"
 import topbar from "../vendor/topbar"
 
+const CttDragDrop = {
+  mounted() {
+    this.el.addEventListener("dragstart", e => {
+      const card = e.target.closest("[data-ctt-card]")
+      if (!card) return
+      e.dataTransfer.setData("text/plain", JSON.stringify({
+        rank: card.dataset.rank,
+        suit: card.dataset.suit,
+      }))
+      e.dataTransfer.effectAllowed = "move"
+    })
+
+    this.el.addEventListener("dragover", e => {
+      if (e.target.closest("[data-ctt-slot]")) {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = "move"
+      }
+    })
+
+    this.el.addEventListener("drop", e => {
+      const slot = e.target.closest("[data-ctt-slot]")
+      if (!slot) return
+      e.preventDefault()
+      const raw = e.dataTransfer.getData("text/plain")
+      if (!raw) return
+      try {
+        const {rank, suit} = JSON.parse(raw)
+        this.pushEvent("ctt_drop_card", {rank, suit, slot: slot.dataset.cttSlot})
+      } catch (_) {}
+    })
+  },
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, CttDragDrop},
 })
 
 // Show progress bar on live navigation and form submits

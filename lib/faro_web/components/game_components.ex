@@ -141,6 +141,7 @@ defmodule FaroWeb.GameComponents do
         src={card_path(@rank, @suit)}
         alt={card_alt(@rank, @suit)}
         class="h-32 w-24 drop-shadow-lg"
+        draggable="false"
       />
     </div>
     """
