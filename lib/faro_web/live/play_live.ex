@@ -416,8 +416,8 @@ defmodule FaroWeb.PlayLive do
         </div>
 
         <%!-- Shuffle Verification + Client Seed (published before play, visible throughout) --%>
-        <div class="space-y-1.5">
-          <div class="flex items-start gap-3 rounded border border-stone-700 bg-stone-900 px-3 py-2">
+        <div class="rounded border border-stone-700 bg-stone-900 divide-y divide-stone-700">
+          <div class="flex items-start gap-3 px-3 py-2">
             <span class="flex-shrink-0 pt-0.5 text-xs uppercase tracking-widest text-stone-500">
               Shuffle Verification
             </span>
@@ -429,7 +429,7 @@ defmodule FaroWeb.PlayLive do
             <% end %>
           </div>
 
-          <div class="rounded border border-stone-700 bg-stone-900 px-3 py-2 space-y-1.5">
+          <div class="px-3 py-2 space-y-1.5">
             <div class="flex items-start gap-3">
               <span class="flex-shrink-0 pt-0.5 text-xs uppercase tracking-widest text-stone-500">
                 Client Seed
