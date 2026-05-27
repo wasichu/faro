@@ -7,6 +7,8 @@ defmodule FaroWeb.GameComponents do
   """
   use Phoenix.Component
 
+  alias Faro.GameEngine.Fairness
+
   @ranks 1..13
   @board_top_row [13, 12, 11, 10, 9, 8]
   @board_bottom_row [1, 2, 3, 4, 5, 6]
@@ -397,6 +399,15 @@ defmodule FaroWeb.GameComponents do
   attr :audit, :map, required: true
 
   def audit_panel(assigns) do
+    shuffle_seed =
+      Fairness.derive_shuffle_seed(
+        assigns.audit.server_seed,
+        assigns.audit.client_seed,
+        assigns.audit.nonce
+      )
+
+    assigns = assign(assigns, :shuffle_seed, Base.encode16(shuffle_seed, case: :lower))
+
     ~H"""
     <div class="rounded-lg border border-amber-700/50 bg-stone-900 p-4 space-y-3">
       <div class="flex items-center justify-between">
@@ -417,7 +428,7 @@ defmodule FaroWeb.GameComponents do
           <span class="text-amber-300 break-all">{@audit.algorithm_version}</span>
         </div>
         <div class="flex flex-col gap-0.5">
-          <span class="text-stone-500 font-sans">Commitment (pre-game)</span>
+          <span class="text-stone-500 font-sans">Shuffle Verification (pre-game)</span>
           <span class="text-stone-300 break-all">{@audit.server_commitment}</span>
         </div>
         <div class="flex flex-col gap-0.5">
@@ -433,6 +444,10 @@ defmodule FaroWeb.GameComponents do
         <div class="flex flex-col gap-0.5">
           <span class="text-stone-500 font-sans">Nonce</span>
           <span class="text-stone-300">{@audit.nonce}</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-stone-500 font-sans">Shuffle Seed (derived)</span>
+          <span class="text-stone-300 break-all">{@shuffle_seed}</span>
         </div>
       </div>
     </div>

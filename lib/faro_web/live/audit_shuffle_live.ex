@@ -4,14 +4,14 @@ defmodule FaroWeb.AuditShuffleLive do
   alias Faro.GameEngine.{Deck, Fairness, Shuffle}
   alias FaroWeb.GameComponents
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     {:ok,
      assign(socket,
        page_title: "Manual Shuffle Verifier",
-       server_seed: "",
-       server_seed_hash: "",
-       client_seed: "",
-       nonce: "1",
+       server_seed: Map.get(params, "server_seed", ""),
+       server_seed_hash: Map.get(params, "server_seed_hash", ""),
+       client_seed: Map.get(params, "client_seed", ""),
+       nonce: Map.get(params, "nonce", "1"),
        algorithm_version: Fairness.algorithm_version(),
        result: nil,
        error: nil

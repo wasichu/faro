@@ -385,15 +385,18 @@ defmodule FaroWeb.PlayLive do
           <.balance_display balance_sats={@balance} />
         </div>
 
-        <%!-- Commitment + Client Seed (published before play, visible throughout) --%>
+        <%!-- Shuffle Verification + Client Seed (published before play, visible throughout) --%>
         <div class="space-y-1.5">
           <div class="flex items-start gap-3 rounded border border-stone-700 bg-stone-900 px-3 py-2">
             <span class="flex-shrink-0 pt-0.5 text-xs uppercase tracking-widest text-stone-500">
-              Commitment
+              Shuffle Verification
             </span>
-            <span class="break-all font-mono text-[10px] leading-relaxed text-stone-400">
+            <span class="break-all font-mono text-[10px] leading-relaxed text-stone-400 flex-1">
               {@commitment}
             </span>
+            <%= if @round.turns != [] do %>
+              <span class="flex-shrink-0 text-xs text-stone-600">🔒 locked</span>
+            <% end %>
           </div>
 
           <div class="rounded border border-stone-700 bg-stone-900 px-3 py-2 space-y-1.5">
@@ -449,7 +452,7 @@ defmodule FaroWeb.PlayLive do
                 </button>
               </div>
               <p class="text-[10px] text-stone-600">
-                Applying a new client seed restarts this round with a new commitment.
+                Applying a new client seed restarts this round with a fresh shuffle proof.
               </p>
             <% end %>
           </div>

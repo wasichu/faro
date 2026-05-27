@@ -88,6 +88,9 @@ defmodule FaroWeb.AuditRoundLive do
           />
           <.param_row label="Client Seed" value={@round.client_seed} />
           <.param_row label="Nonce" value={Integer.to_string(@round.nonce)} />
+          <%= if @verification && @verification.status == :complete do %>
+            <.param_row label="Shuffle Seed (derived)" value={@verification.shuffle_seed_hex} />
+          <% end %>
           <.param_row label="Status" value={to_string(@round.status)} />
         </dl>
       </div>
@@ -206,9 +209,25 @@ defmodule FaroWeb.AuditRoundLive do
       <%!-- Verify manually link --%>
       <div class="border-t border-stone-800 pt-4 text-sm text-stone-500">
         Want to verify this independently?
-        <.link navigate={~p"/audit/shuffle"} class="text-amber-400 hover:underline ml-1">
-          Use the manual shuffle verifier
-        </.link>
+        <%= if @round.server_seed do %>
+          <.link
+            href={~p"/audit/shuffle?#{%{
+              server_seed: Base.encode16(@round.server_seed, case: :lower),
+              server_seed_hash: @round.server_seed_hash,
+              client_seed: @round.client_seed,
+              nonce: @round.nonce
+            }}"}
+            target="_blank"
+            class="text-amber-400 hover:underline ml-1"
+          >
+            Open in manual verifier →
+          </.link>
+        <% else %>
+          <.link href={~p"/audit/shuffle"} target="_blank" class="text-amber-400 hover:underline ml-1">
+            Use the manual shuffle verifier
+          </.link>
+          <span class="ml-1">(seeds available after round finishes)</span>
+        <% end %>
       </div>
     </div>
     """
@@ -384,6 +403,7 @@ defmodule FaroWeb.AuditRoundLive do
         shuffle_seed =
           Fairness.derive_shuffle_seed(round.server_seed, round.client_seed, round.nonce)
 
+        shuffle_seed_hex = Base.encode16(shuffle_seed, case: :lower)
         reproduced = Shuffle.shuffle(Deck.new(), shuffle_seed)
         deck_ok = reproduced == decoded_deck
 
@@ -399,7 +419,8 @@ defmodule FaroWeb.AuditRoundLive do
           cards_ok: cards_ok,
           settlements_ok: settlements_ok,
           overall: hash_ok && deck_ok && soda_ok && cards_ok && settlements_ok,
-          deck: decoded_deck
+          deck: decoded_deck,
+          shuffle_seed_hex: shuffle_seed_hex
         }
     end
   end
