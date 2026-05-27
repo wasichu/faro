@@ -35,11 +35,8 @@ defmodule FaroWeb.Layouts do
       <header class="bg-stone-950 border-b border-amber-800/50 shadow-lg">
         <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between h-14">
-            <.link
-              navigate={~p"/"}
-              class="text-amber-400 font-serif text-xl font-bold tracking-widest uppercase hover:text-amber-300 transition-colors"
-            >
-              Faro
+            <.link navigate={~p"/"} class="flex items-center hover:opacity-85 transition-opacity">
+              <img src="/images/logo.svg" alt="Faro" class="h-9 w-auto" />
             </.link>
             <ul class="hidden sm:flex items-center gap-6">
               <li>
