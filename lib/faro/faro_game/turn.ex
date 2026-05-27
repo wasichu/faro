@@ -23,11 +23,6 @@ defmodule Faro.FaroGame.Turn do
     defaults [:read, :destroy, create: :*, update: :*]
   end
 
-  code_interface do
-    define :create, action: :create
-    define :get, action: :read, get_by: :id
-  end
-
   attributes do
     uuid_primary_key :id
 

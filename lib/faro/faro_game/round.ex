@@ -27,12 +27,6 @@ defmodule Faro.FaroGame.Round do
     defaults [:read, :destroy, create: :*, update: :*]
   end
 
-  code_interface do
-    define :create, action: :create
-    define :get, action: :read, get_by: :id
-    define :update, action: :update
-  end
-
   attributes do
     uuid_primary_key :id
 

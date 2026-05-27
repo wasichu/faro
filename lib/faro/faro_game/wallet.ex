@@ -15,8 +15,6 @@ defmodule Faro.FaroGame.Wallet do
     domain: Faro.FaroGame,
     data_layer: AshPostgres.DataLayer
 
-  alias Faro.FaroGame.LedgerEntry
-
   @starting_balance 1_000_000
 
   postgres do
@@ -25,13 +23,87 @@ defmodule Faro.FaroGame.Wallet do
   end
 
   actions do
-    defaults [:read, :destroy, create: :*, update: :*]
-  end
+    defaults [:read, :destroy, update: :*]
 
-  code_interface do
-    define :create, action: :create
-    define :get, action: :read, get_by: :id
-    define :update, action: :update
+    create :create_with_topup do
+      accept [:game_session_id]
+
+      change set_attribute(:balance_sats, @starting_balance)
+
+      change fn changeset, _context ->
+        Ash.Changeset.after_action(changeset, fn _changeset, wallet ->
+          Ash.create!(
+            Faro.FaroGame.LedgerEntry,
+            %{
+              wallet_id: wallet.id,
+              amount_sats: @starting_balance,
+              entry_type: :topup,
+              note: "FTC starting balance"
+            },
+            domain: Faro.FaroGame
+          )
+
+          {:ok, wallet}
+        end)
+      end
+    end
+
+    update :record_turn do
+      require_atomic? false
+
+      argument :bets, {:array, :map}, allow_nil?: false
+      argument :settlements, {:array, :map}, allow_nil?: false
+      argument :post_deal_balance, :integer, allow_nil?: false
+      argument :round_id, :uuid, allow_nil?: true
+      argument :turn_index, :integer, allow_nil?: true
+
+      change fn changeset, _context ->
+        balance = Ash.Changeset.get_argument(changeset, :post_deal_balance)
+
+        changeset
+        |> Ash.Changeset.change_attribute(:balance_sats, balance)
+        |> Ash.Changeset.after_action(fn changeset, wallet ->
+          bets = Ash.Changeset.get_argument(changeset, :bets)
+          settlements = Ash.Changeset.get_argument(changeset, :settlements)
+          round_id = Ash.Changeset.get_argument(changeset, :round_id)
+          turn_index = Ash.Changeset.get_argument(changeset, :turn_index)
+
+          Enum.each(bets, fn bet ->
+            Ash.create!(
+              Faro.FaroGame.LedgerEntry,
+              %{
+                wallet_id: wallet.id,
+                amount_sats: -bet.amount,
+                entry_type: :bet_debit,
+                round_id: round_id,
+                turn_index: turn_index
+              },
+              domain: Faro.FaroGame
+            )
+          end)
+
+          Enum.each(settlements, fn s ->
+            payout = s.bet.amount + s.net
+
+            if payout > 0 do
+              Ash.create!(
+                Faro.FaroGame.LedgerEntry,
+                %{
+                  wallet_id: wallet.id,
+                  amount_sats: payout,
+                  entry_type: :payout_credit,
+                  round_id: round_id,
+                  turn_index: turn_index
+                },
+                domain: Faro.FaroGame
+              )
+            end
+          end)
+
+          {:ok, wallet}
+        end)
+      end
+    end
   end
 
   attributes do
@@ -56,87 +128,45 @@ defmodule Faro.FaroGame.Wallet do
   end
 
   # ---------------------------------------------------------------------------
-  # Business logic
+  # Public API — thin wrappers that convert engine structs to action arguments.
+  # These preserve the existing call signature used by PlayLive and tests.
   # ---------------------------------------------------------------------------
 
   @doc """
-  Creates a wallet and records the initial FTC topup in a single transaction.
-  Returns `{:ok, wallet}` or `{:error, reason}`.
+  Creates a wallet with the starting balance and a corresponding topup ledger
+  entry, all in a single Ash-managed transaction.
   """
   def create_with_topup(attrs \\ %{}) do
-    Faro.Repo.transaction(fn ->
-      wallet =
-        case __MODULE__.create(Map.merge(%{balance_sats: @starting_balance}, attrs)) do
-          {:ok, w} -> w
-          {:error, e} -> Faro.Repo.rollback(e)
-        end
-
-      case LedgerEntry.create(%{
-             wallet_id: wallet.id,
-             amount_sats: @starting_balance,
-             entry_type: :topup,
-             note: "FTC starting balance"
-           }) do
-        {:ok, _} -> wallet
-        {:error, e} -> Faro.Repo.rollback(e)
-      end
-    end)
+    Faro.FaroGame.create_wallet_with_topup(attrs)
   end
 
   @doc """
   Records ledger entries for a completed engine turn and updates the cached
   balance in a single transaction.
 
-  - One `:bet_debit` entry per bet placed (negative amount).
-  - One `:payout_credit` entry per settlement that returns anything positive.
-  - Balance is set to `post_deal_balance` (computed by the engine).
-
-  Returns `{:ok, updated_wallet}` or `{:error, reason}`.
-  Turns with no bets are a no-op and return `{:ok, wallet}` immediately.
+  Turns with no bets are a no-op.
   """
   def record_turn(wallet, completed_turn, post_deal_balance, opts \\ []) do
     if completed_turn.bets == [] do
       {:ok, wallet}
     else
-      round_id = Keyword.get(opts, :round_id)
-      turn_index = Keyword.get(opts, :turn_index)
+      bets = Enum.map(completed_turn.bets, fn bet -> %{amount: bet.amount} end)
 
-      Faro.Repo.transaction(fn ->
-        Enum.each(completed_turn.bets, fn bet ->
-          case LedgerEntry.create(%{
-                 wallet_id: wallet.id,
-                 amount_sats: -bet.amount,
-                 entry_type: :bet_debit,
-                 round_id: round_id,
-                 turn_index: turn_index
-               }) do
-            {:ok, _} -> :ok
-            {:error, e} -> Faro.Repo.rollback(e)
-          end
+      settlements =
+        Enum.map(completed_turn.settlements, fn s ->
+          %{net: s.net, bet: %{amount: s.bet.amount}}
         end)
 
-        Enum.each(completed_turn.settlements, fn settlement ->
-          payout = settlement.bet.amount + settlement.net
-
-          if payout > 0 do
-            case LedgerEntry.create(%{
-                   wallet_id: wallet.id,
-                   amount_sats: payout,
-                   entry_type: :payout_credit,
-                   round_id: round_id,
-                   turn_index: turn_index
-                 }) do
-              {:ok, _} -> :ok
-              {:error, e} -> Faro.Repo.rollback(e)
-            end
-          end
-        end)
-
-        case __MODULE__.update(wallet, %{balance_sats: post_deal_balance}) do
-          {:ok, updated} -> updated
-          {:error, e} -> Faro.Repo.rollback(e)
-        end
-      end)
+      Faro.FaroGame.record_wallet_turn(wallet, %{
+        bets: bets,
+        settlements: settlements,
+        post_deal_balance: post_deal_balance,
+        round_id: Keyword.get(opts, :round_id),
+        turn_index: Keyword.get(opts, :turn_index)
+      })
     end
   end
+
+  @doc "Fetches a wallet by id."
+  def get(id), do: Faro.FaroGame.get_wallet(id)
 end

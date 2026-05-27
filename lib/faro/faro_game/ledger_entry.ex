@@ -25,10 +25,12 @@ defmodule Faro.FaroGame.LedgerEntry do
 
   actions do
     defaults [:read, :destroy, create: :*, update: :*]
-  end
 
-  code_interface do
-    define :create, action: :create
+    read :by_wallet do
+      argument :wallet_id, :uuid, allow_nil?: false
+      filter expr(wallet_id == ^arg(:wallet_id))
+      prepare build(sort: [:inserted_at])
+    end
   end
 
   attributes do

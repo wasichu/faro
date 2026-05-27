@@ -4,9 +4,7 @@ defmodule FaroWeb.PlayLive do
   require Logger
 
   alias Faro.GameEngine.{Audit, Bet, CallTheTurnBet, Card, Deck, Fairness, HighCardBet, Round, Shuffle}
-  alias Faro.FaroGame.GameSession
-  alias Faro.FaroGame.Round, as: RoundRecord
-  alias Faro.FaroGame.Turn, as: TurnRecord
+  alias Faro.FaroGame
   alias Faro.FaroGame.Serializer
   alias Faro.FaroGame.Wallet
   alias Faro.Audit.Record, as: AuditRecord
@@ -16,7 +14,7 @@ defmodule FaroWeb.PlayLive do
 
   def mount(_params, _session, socket) do
     session_id =
-      case GameSession.create(%{}) do
+      case FaroGame.create_session(%{}) do
         {:ok, session} -> session.id
         {:error, e} -> Logger.warning("GameSession creation failed: #{inspect(e)}"); nil
       end
@@ -772,7 +770,7 @@ defmodule FaroWeb.PlayLive do
       shuffled_deck: Serializer.encode_deck(shuffled_deck)
     }
 
-    case RoundRecord.create(attrs) do
+    case FaroGame.create_round(attrs) do
       {:ok, db_round} -> db_round.id
       {:error, e} -> Logger.warning("Round persistence failed: #{inspect(e)}"); nil
     end
@@ -793,7 +791,7 @@ defmodule FaroWeb.PlayLive do
       settlements: Enum.map(turn.settlements, &Serializer.encode_settlement/1)
     }
 
-    case TurnRecord.create(attrs) do
+    case FaroGame.create_turn(attrs) do
       {:ok, _} -> :ok
       {:error, e} -> Logger.warning("Turn persistence failed: #{inspect(e)}")
     end
@@ -802,8 +800,8 @@ defmodule FaroWeb.PlayLive do
   defp update_round_phase(nil, _phase), do: :ok
 
   defp update_round_phase(db_round_id, phase) do
-    with {:ok, db_round} <- RoundRecord.get(db_round_id),
-         {:ok, _} <- RoundRecord.update(db_round, %{status: phase}) do
+    with {:ok, db_round} <- FaroGame.get_round(db_round_id),
+         {:ok, _} <- FaroGame.update_round(db_round, %{status: phase}) do
       :ok
     else
       {:error, e} -> Logger.warning("Round phase update failed: #{inspect(e)}")
@@ -813,8 +811,8 @@ defmodule FaroWeb.PlayLive do
   defp persist_round_complete(nil, _server_seed, _audit), do: :ok
 
   defp persist_round_complete(db_round_id, server_seed, audit) do
-    with {:ok, db_round} <- RoundRecord.get(db_round_id),
-         {:ok, _} <- RoundRecord.update(db_round, %{status: :finished, server_seed: server_seed}) do
+    with {:ok, db_round} <- FaroGame.get_round(db_round_id),
+         {:ok, _} <- FaroGame.update_round(db_round, %{status: :finished, server_seed: server_seed}) do
       :ok
     else
       {:error, e} -> Logger.warning("Round finalization failed: #{inspect(e)}")

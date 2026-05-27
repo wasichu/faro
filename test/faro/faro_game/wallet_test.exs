@@ -1,7 +1,7 @@
 defmodule Faro.FaroGame.WalletTest do
   use Faro.DataCase, async: true
 
-  alias Faro.FaroGame.{GameSession, LedgerEntry, Wallet}
+  alias Faro.FaroGame.Wallet
   alias Faro.GameEngine.{Bet, Deck, Fairness, Round, Shuffle}
 
   @starting_balance 1_000_000
@@ -16,11 +16,7 @@ defmodule Faro.FaroGame.WalletTest do
   end
 
   defp ledger_entries(wallet) do
-    wallet_id = wallet.id
-    {:ok, entries} = Ash.read(LedgerEntry, domain: Faro.FaroGame)
-    entries
-    |> Enum.filter(&(&1.wallet_id == wallet_id))
-    |> Enum.sort_by(& &1.inserted_at)
+    Faro.FaroGame.list_ledger_entries_for_wallet!(wallet.id)
   end
 
   defp deal_one_turn(bets \\ []) do
@@ -54,7 +50,7 @@ defmodule Faro.FaroGame.WalletTest do
     end
 
     test "can be associated with a session" do
-      {:ok, session} = GameSession.create(%{})
+      {:ok, session} = Faro.FaroGame.create_session(%{})
       wallet = create_wallet(%{game_session_id: session.id})
       assert wallet.game_session_id == session.id
     end
