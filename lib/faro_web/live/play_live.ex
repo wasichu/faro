@@ -97,6 +97,14 @@ defmodule FaroWeb.PlayLive do
     end
   end
 
+  def handle_event("halve_ctt_amount", _params, socket) do
+    {:noreply, assign(socket, ctt_amount: max(1, div(socket.assigns.ctt_amount, 2)))}
+  end
+
+  def handle_event("double_ctt_amount", _params, socket) do
+    {:noreply, assign(socket, ctt_amount: socket.assigns.ctt_amount * 2)}
+  end
+
   def handle_event("ctt_select_card", %{"rank" => rank_str, "suit" => suit_str}, socket) do
     %{ctt_selected: selected} = socket.assigns
     rank = String.to_integer(rank_str)
@@ -375,15 +383,29 @@ defmodule FaroWeb.PlayLive do
             <%!-- Bet amount --%>
             <div class="flex flex-wrap items-center gap-3">
               <span class="text-xs text-stone-400">Bet Amount</span>
-              <input
-                type="number"
-                min="1"
-                value={@ctt_amount}
-                phx-change="set_ctt_amount"
-                phx-debounce="300"
-                name="amount"
-                class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-              />
+              <div class="flex items-center gap-1.5">
+                <button
+                  phx-click="halve_ctt_amount"
+                  class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+                >
+                  ½
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  value={@ctt_amount}
+                  phx-change="set_ctt_amount"
+                  phx-debounce="300"
+                  name="amount"
+                  class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
+                />
+                <button
+                  phx-click="double_ctt_amount"
+                  class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+                >
+                  2×
+                </button>
+              </div>
               <span class="text-xs text-stone-500">sats</span>
               <%= if Enum.all?(@ctt_slots, &(&1 != nil)) and @ctt_amount > @balance do %>
                 <span class="text-xs text-red-400">Insufficient balance</span>
@@ -472,6 +494,7 @@ defmodule FaroWeb.PlayLive do
         <%!-- Pending bets --%>
         <%= if @round.phase != :finished and @pending_bets != [] do %>
           <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
+            <h3 class="mb-2 text-xs font-bold uppercase tracking-widest text-amber-400">Active Bets</h3>
             <ul class="space-y-1.5">
               <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
                 <li class="flex items-center justify-between text-sm">
@@ -521,7 +544,7 @@ defmodule FaroWeb.PlayLive do
             player_card={if @last_turn, do: @last_turn.winner}
             hock_card={@hock_card}
             turn_number={if @last_turn, do: @last_turn.index}
-            split?={if @last_turn, do: @last_turn.split?, else: false}
+            split?={@last_turn != nil and @last_turn.split? and @round.phase != :finished}
           />
           <.recent_turns_list turns={@recent_turns} hock_card={@hock_card} />
         </div>
