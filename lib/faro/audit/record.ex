@@ -22,6 +22,10 @@ defmodule Faro.Audit.Record do
   postgres do
     table "audit_records"
     repo(Faro.Repo)
+
+    references do
+      reference(:round, on_delete: :delete)
+    end
   end
 
   actions do

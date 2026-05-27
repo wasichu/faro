@@ -20,6 +20,10 @@ defmodule Faro.FaroGame.Wallet do
   postgres do
     table "wallets"
     repo(Faro.Repo)
+
+    references do
+      reference(:game_session, on_delete: :delete)
+    end
   end
 
   actions do

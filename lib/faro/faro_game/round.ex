@@ -16,15 +16,34 @@ defmodule Faro.FaroGame.Round do
 
   use Ash.Resource,
     domain: Faro.FaroGame,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    extensions: [AshOban]
 
   postgres do
     table "game_rounds"
     repo(Faro.Repo)
+
+    references do
+      reference(:game_session, on_delete: :delete)
+    end
+  end
+
+  oban do
+    scheduled_actions do
+      schedule :cleanup_abandoned_rounds, "*/30 * * * *" do
+        action :cleanup_abandoned_rounds
+        worker_module_name Faro.Workers.CleanupAbandonedRounds
+        queue :maintenance
+      end
+    end
   end
 
   actions do
     defaults [:read, :destroy, create: :*, update: :*]
+
+    action :cleanup_abandoned_rounds do
+      run Faro.FaroGame.RoundCleanup
+    end
   end
 
   attributes do

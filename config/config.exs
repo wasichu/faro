@@ -54,8 +54,15 @@ config :faro,
 config :faro, Oban,
   engine: Oban.Engines.Basic,
   repo: Faro.Repo,
-  queues: [default: 10],
+  queues: [default: 10, maintenance: 5],
   plugins: [{Oban.Plugins.Cron, []}]
+
+# Retention thresholds for background cleanup jobs.
+# session_retention_hours: delete active (abandoned) sessions inactive for this long
+# round_retention_hours: delete in-progress rounds not updated for this long
+config :faro, :cleanup,
+  session_retention_hours: 24,
+  round_retention_hours: 2
 
 # Configures the endpoint
 config :faro, FaroWeb.Endpoint,

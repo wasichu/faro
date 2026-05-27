@@ -17,6 +17,10 @@ defmodule Faro.FaroGame.Turn do
   postgres do
     table "game_turns"
     repo(Faro.Repo)
+
+    references do
+      reference(:round, on_delete: :delete)
+    end
   end
 
   actions do

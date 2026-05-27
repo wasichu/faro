@@ -21,6 +21,11 @@ defmodule Faro.FaroGame.LedgerEntry do
   postgres do
     table "ledger_entries"
     repo(Faro.Repo)
+
+    references do
+      reference(:wallet, on_delete: :delete)
+      reference(:round, on_delete: :nilify)
+    end
   end
 
   actions do
