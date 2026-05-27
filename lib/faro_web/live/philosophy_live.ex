@@ -21,11 +21,15 @@ defmodule FaroWeb.PhilosophyLive do
           frontier saloons, miners, and professional gamblers alike.
         </p>
         <p class="text-stone-300 leading-relaxed">
-          We built Faro because the game deserves a serious digital treatment: not a novelty, not
-          a casino caricature, and not a retro skin over blackjack, but a faithful recreation of
-          a real historical game. Faro is fast, strategic, and deeply tied to the flow of the deck
-          itself. Every revealed card changes the remaining odds. That makes it a natural fit for
-          transparent, auditable online play.
+          Faro also turns out to be a surprisingly interesting technical problem. The game combines
+          deterministic shuffling, public auditability, stateful gameplay, card tracking, and
+          mathematically precise settlement rules in a way that maps naturally onto modern web
+          systems. Every round can be reproduced, verified, and replayed from its published shuffle
+          inputs and recorded actions.
+        </p>
+        <p class="text-stone-300 leading-relaxed">
+          This project is an attempt to preserve the feel of the original game while exploring
+          transparent systems design, provably fair mechanics, and historically grounded online play.
         </p>
       </section>
 
