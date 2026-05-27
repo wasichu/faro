@@ -204,6 +204,11 @@ defmodule FaroWeb.PlayLive do
 
     {completed_turn, new_round} = Round.deal_turn(round, bets_to_deal)
 
+    ordered_settlements =
+      Enum.sort_by(completed_turn.settlements, fn s ->
+        Enum.find_index(bets_to_deal, &(&1 == s.bet)) || 999
+      end)
+
     delta =
       Enum.reduce(completed_turn.settlements, 0, fn s, acc ->
         acc + s.bet.amount + s.net
@@ -271,7 +276,7 @@ defmodule FaroWeb.PlayLive do
        wallet: updated_wallet,
        pending_bets: restored_bets,
        last_turn: completed_turn,
-       last_settlements: completed_turn.settlements,
+       last_settlements: ordered_settlements,
        keep_bets?: keep_bets?,
        audit: audit,
        ctt_slots: new_ctt_slots,
@@ -1196,7 +1201,7 @@ defmodule FaroWeb.PlayLive do
   defp outcome_text_class(:void), do: "text-stone-500"
 
   defp outcome_net_label(:win, net), do: "+#{format_sats(net)}"
-  defp outcome_net_label(:loss, _net), do: ""
+  defp outcome_net_label(:loss, net), do: "#{format_sats(net)}"
   defp outcome_net_label(:push, _net), do: "returned"
   defp outcome_net_label(:split, net), do: format_sats(net)
   defp outcome_net_label(:void, _net), do: "returned"
