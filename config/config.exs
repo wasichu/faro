@@ -7,6 +7,8 @@
 # General application configuration
 import Config
 
+config :ash_oban, pro?: false
+
 config :ash,
   allow_forbidden_field_for_relationships_by_default?: true,
   include_embedded_source_by_default?: false,
@@ -47,18 +49,13 @@ config :spark,
 config :faro,
   ecto_repos: [Faro.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
-  ash_domains: [
-    Faro.Accounts,
-    Faro.Wallets,
-    Faro.FaroGame,
-    Faro.Bitcoin,
-    Faro.Audit
-  ]
+  ash_domains: [Faro.Accounts, Faro.Wallets, Faro.FaroGame, Faro.Bitcoin, Faro.Audit]
 
 config :faro, Oban,
   engine: Oban.Engines.Basic,
   repo: Faro.Repo,
-  queues: [default: 10]
+  queues: [default: 10],
+  plugins: [{Oban.Plugins.Cron, []}]
 
 # Configures the endpoint
 config :faro, FaroWeb.Endpoint,

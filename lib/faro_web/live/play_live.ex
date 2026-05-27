@@ -138,7 +138,8 @@ defmodule FaroWeb.PlayLive do
         {:noreply, socket}
 
       bet ->
-        {:noreply, assign(socket, ctt_placed_bet: nil, balance: socket.assigns.balance + bet.amount)}
+        {:noreply,
+         assign(socket, ctt_placed_bet: nil, balance: socket.assigns.balance + bet.amount)}
     end
   end
 
@@ -167,12 +168,15 @@ defmodule FaroWeb.PlayLive do
   end
 
   def handle_event("skip_ctt", _params, socket) do
-    refund = case socket.assigns.ctt_placed_bet do
-      nil -> 0
-      bet -> bet.amount
-    end
+    refund =
+      case socket.assigns.ctt_placed_bet do
+        nil -> 0
+        bet -> bet.amount
+      end
 
-    handle_event("deal_turn", %{},
+    handle_event(
+      "deal_turn",
+      %{},
       assign(socket,
         ctt_slots: [nil, nil, nil],
         ctt_placed_bet: nil,
@@ -526,7 +530,9 @@ defmodule FaroWeb.PlayLive do
             <%!-- Available cards + Predicted Order — side by side on wider viewports --%>
             <div class="flex flex-col sm:flex-row gap-6">
               <div>
-                <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">Available Cards</div>
+                <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">
+                  Available Cards
+                </div>
                 <div class="flex gap-3">
                   <%= for card <- @ctt_available do %>
                     <div
@@ -550,7 +556,9 @@ defmodule FaroWeb.PlayLive do
               </div>
 
               <div>
-                <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">Predicted Order</div>
+                <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">
+                  Predicted Order
+                </div>
                 <div class="flex gap-4">
                   <%= for {slot_card, idx} <- Enum.with_index(@ctt_slots) do %>
                     <div class="flex flex-col items-center gap-1">
@@ -762,7 +770,9 @@ defmodule FaroWeb.PlayLive do
               <%!-- CTT placed bet --%>
               <%= if @ctt_placed_bet do %>
                 <div class="space-y-1.5">
-                  <div class="text-[10px] uppercase tracking-widest text-stone-500">Call the Turn</div>
+                  <div class="text-[10px] uppercase tracking-widest text-stone-500">
+                    Call the Turn
+                  </div>
                   <div class="flex items-center justify-between text-sm">
                     <span class="text-stone-300">{pending_bet_label(@ctt_placed_bet)}</span>
                     <div class="flex items-center gap-3">

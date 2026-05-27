@@ -42,6 +42,7 @@ defmodule Faro.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:ash_oban, "~> 0.8"},
       {:sourceror, "~> 1.8", only: [:dev, :test]},
       {:ash, "~> 3.0"},
       {:ash_postgres, "~> 2.0"},
@@ -110,7 +111,8 @@ defmodule Faro.MixProject do
         :otp,
         :phoenix,
         :ash,
-        :ash_postgres
+        :ash_postgres,
+        :ash_oban
       ]
     ]
   end

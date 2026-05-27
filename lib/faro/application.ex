@@ -12,7 +12,11 @@ defmodule Faro.Application do
       Faro.Repo,
       {DNSCluster, query: Application.get_env(:faro, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Faro.PubSub},
-      {Oban, Application.fetch_env!(:faro, Oban)},
+      {Oban,
+       AshOban.config(
+         Application.fetch_env!(:faro, :ash_domains),
+         Application.fetch_env!(:faro, Oban)
+       )},
       FaroWeb.Endpoint
     ]
 

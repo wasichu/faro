@@ -211,12 +211,9 @@ defmodule FaroWeb.AuditRoundLive do
         Want to verify this independently?
         <%= if @round.server_seed do %>
           <.link
-            href={~p"/audit/shuffle?#{%{
-              server_seed: Base.encode16(@round.server_seed, case: :lower),
-              server_seed_hash: @round.server_seed_hash,
-              client_seed: @round.client_seed,
-              nonce: @round.nonce
-            }}"}
+            href={
+              ~p"/audit/shuffle?#{%{server_seed: Base.encode16(@round.server_seed, case: :lower), server_seed_hash: @round.server_seed_hash, client_seed: @round.client_seed, nonce: @round.nonce}}"
+            }
             target="_blank"
             class="text-amber-400 hover:underline ml-1"
           >
