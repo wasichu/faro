@@ -473,14 +473,20 @@ defmodule FaroWeb.GameComponents do
 
   # ---- Card asset paths ----
 
-  def card_path(rank, suit), do: "/images/cards/#{card_rank_name(rank)}_#{suit}.svg"
-  def card_back_path, do: "/images/cards/back.svg"
+  def card_path(rank, suit), do: "/images/cards/#{card_rank_letter(rank)}#{suit_letter(suit)}.svg"
+  def card_back_path, do: "/images/cards/2B.svg"
 
-  defp card_rank_name(1), do: "ace"
-  defp card_rank_name(11), do: "jack"
-  defp card_rank_name(12), do: "queen"
-  defp card_rank_name(13), do: "king"
-  defp card_rank_name(n), do: Integer.to_string(n)
+  defp card_rank_letter(1), do: "A"
+  defp card_rank_letter(10), do: "T"
+  defp card_rank_letter(11), do: "J"
+  defp card_rank_letter(12), do: "Q"
+  defp card_rank_letter(13), do: "K"
+  defp card_rank_letter(n), do: Integer.to_string(n)
+
+  defp suit_letter(:clubs), do: "C"
+  defp suit_letter(:diamonds), do: "D"
+  defp suit_letter(:hearts), do: "H"
+  defp suit_letter(:spades), do: "S"
 
   defp card_alt(rank, suit),
     do: "#{rank_label(rank)} of #{suit |> to_string() |> String.capitalize()}"
