@@ -25,16 +25,22 @@ defmodule FaroWeb.PhilosophyLive do
       </section>
 
       <section class="space-y-3">
-        <h2 class="font-serif text-xl font-semibold text-amber-300">Fiat-Free from Day One</h2>
+        <h2 class="font-serif text-xl font-semibold text-amber-300">Transparent by Design</h2>
         <p class="text-stone-300 leading-relaxed">
-          We denominate in satoshis. There is no points system, no in-game currency, no
-          conversion layer. A satoshi is a satoshi. This means wagering is real from the first
-          hand — even when played on regtest or signet, the accounting is honest.
+          Faro was one of the defining gambling games of the American frontier: fast, strategic,
+          and unusually fair when honestly dealt. This project recreates the game with a focus on
+          transparency, auditability, and historical atmosphere rather than modern casino mechanics.
         </p>
         <p class="text-stone-300 leading-relaxed">
-          The v1 implementation uses play coins (FTC — Feathercoin testnet) to let players
-          experience the full betting flow without risking real value. Lightning wagering
-          follows when the game is proven stable.
+          Every round is generated from deterministic shuffling inputs that can be independently
+          verified after play. The server commits to a hidden seed before the round begins, then
+          reveals it afterward so the entire shuffle and deal can be reproduced exactly.
+        </p>
+        <p class="text-stone-300 leading-relaxed">
+          The current implementation uses FTC (fake test coins) so players can experience the full
+          betting flow, settlement logic, and verification system without risking real funds. The
+          focus is on preserving the feel of the game and exploring provably fair systems design
+          in a controlled environment.
         </p>
       </section>
 

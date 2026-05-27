@@ -66,11 +66,11 @@ defmodule FaroWeb.HomeLive do
           </p>
         </div>
         <div class="rounded-lg border border-stone-700 bg-stone-800 p-6 text-center">
-          <div class="mb-3 text-3xl">⚡</div>
-          <h3 class="font-serif text-lg font-semibold text-amber-400">Bitcoin Native</h3>
+          <div class="mb-3 text-3xl">🔎</div>
+          <h3 class="font-serif text-lg font-semibold text-amber-400">Built for Replay</h3>
           <p class="mt-2 text-sm text-stone-400 leading-relaxed">
-            Sats only. No fiat, no tokens. Play for test coins now;
-            real Lightning wagering coming soon.
+            Every completed round can be inspected, replayed, and independently
+            verified card by card.
           </p>
         </div>
       </div>
