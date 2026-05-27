@@ -14,5 +14,6 @@ defmodule Faro.Audit do
   use Ash.Domain
 
   resources do
+    resource Faro.Audit.Record
   end
 end
