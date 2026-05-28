@@ -20,7 +20,7 @@ Two scheduled jobs run periodically to delete stale records. Both are idempotent
 ### Abandoned Session Cleanup
 
 **Schedule:** Hourly (`0 * * * *`)  
-**Worker:** `Faro.Workers.CleanupAbandonedSessions`  
+**Worker:** `Faro.FaroGame.GameSessionCleanup`  
 **Action:** `Faro.FaroGame.GameSession.cleanup_abandoned_sessions`
 
 Deletes `GameSession` records with `status: :active` whose `updated_at` is older than the session retention threshold. These are anonymous FTC sessions whose browser tab was closed or the connection was lost before the session was explicitly ended.
@@ -35,7 +35,7 @@ Deletes `GameSession` records with `status: :active` whose `updated_at` is older
 ### Abandoned Round Cleanup
 
 **Schedule:** Every 30 minutes (`*/30 * * * *`)  
-**Worker:** `Faro.Workers.CleanupAbandonedRounds`  
+**Worker:** `Faro.FaroGame.RoundCleanup`  
 **Action:** `Faro.FaroGame.Round.cleanup_abandoned_rounds`
 
 Deletes `Round` records with `status` of `:dealing` or `:call_the_turn` whose `updated_at` is older than the round retention threshold. These are rounds that were started but the deal was never completed.

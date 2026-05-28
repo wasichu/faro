@@ -41,6 +41,8 @@ This means the entire game engine is trivially testable, reproducible, and audit
 | `Round` | Immutable round state machine (shuffled deck → sequence of turns) |
 | `Turn` | Two-card deal result (loser + winner; split detection) |
 | `Bet` | Player wager (rank, amount, copper flag) |
+| `CallTheTurnBet` | Call-the-turn wager (predicted loser + winner ranks, amount) |
+| `HighCardBet` | High-card wager (amount, copper flag) |
 | `Settlement` | Bet resolution against a turn result |
 | `Casekeeper` | Tracks seen ranks to inform player strategy |
 | `Audit` | Assembles per-round transcript for external verification |
