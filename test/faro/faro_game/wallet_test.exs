@@ -19,7 +19,7 @@ defmodule Faro.FaroGame.WalletTest do
     Faro.FaroGame.list_ledger_entries_for_wallet!(wallet.id)
   end
 
-  defp deal_one_turn(bets \\ []) do
+  defp deal_one_turn(bets) do
     seed = Fairness.generate_server_seed()
     client_seed = "test-seed"
     shuffle_seed = Fairness.derive_shuffle_seed(seed, client_seed, 1)
