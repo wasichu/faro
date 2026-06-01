@@ -12,6 +12,7 @@ defmodule FaroWeb.GameComponents do
   @ranks 1..13
   @board_top_row [13, 12, 11, 10, 9, 8]
   @board_bottom_row [1, 2, 3, 4, 5, 6]
+  @mobile_board_rows [[13, 12, 11, 10], [9, 8, 1, 2], [3, 4, 5, 6]]
 
   # ---------------------------------------------------------------------------
   # Faro Board
@@ -27,14 +28,15 @@ defmodule FaroWeb.GameComponents do
       assigns
       |> assign(:top_row, @board_top_row)
       |> assign(:bottom_row, @board_bottom_row)
+      |> assign(:mobile_board_rows, @mobile_board_rows)
 
     ~H"""
-    <div class="rounded-lg border-2 border-amber-700 bg-green-950 p-4 shadow-2xl">
-      <div class="mx-auto w-2/3">
+    <div class="rounded-lg border-2 border-amber-700 bg-green-950 p-3 shadow-2xl sm:p-4">
+      <div class="mx-auto w-full sm:w-2/3">
         <.high_card_bar bet={@high_card_bet} on_click={@on_high_card_click} />
       </div>
       <%!-- Single 7-col grid: top row (row 1), 7 alone in col 7 (row 2), bottom row (row 3) --%>
-      <div class="mt-3 grid grid-cols-7 gap-2">
+      <div class="mt-3 hidden grid-cols-7 gap-2 sm:grid">
         <%= for rank <- @top_row do %>
           <.board_slot rank={rank} bet={Map.get(@bets, rank)} on_click={@on_rank_click} />
         <% end %>
@@ -47,6 +49,16 @@ defmodule FaroWeb.GameComponents do
           </div>
         <% end %>
       </div>
+      <div class="mt-3 grid grid-cols-4 gap-x-2 gap-y-3 sm:hidden">
+        <%= for row <- @mobile_board_rows do %>
+          <%= for rank <- row do %>
+            <.board_slot rank={rank} bet={Map.get(@bets, rank)} on_click={@on_rank_click} />
+          <% end %>
+        <% end %>
+        <div class="col-span-2 col-start-2">
+          <.board_slot rank={7} bet={Map.get(@bets, 7)} on_click={@on_rank_click} />
+        </div>
+      </div>
     </div>
     """
   end
@@ -58,7 +70,7 @@ defmodule FaroWeb.GameComponents do
     ~H"""
     <div
       class={[
-        "flex items-center justify-between rounded border border-amber-600/50 bg-green-900 px-4 py-2",
+        "flex items-center justify-between gap-3 rounded border border-amber-600/50 bg-green-900 px-3 py-2 sm:px-4",
         if(@on_click, do: "cursor-pointer hover:bg-green-800 transition-colors", else: "")
       ]}
       phx-click={@on_click}
@@ -67,7 +79,9 @@ defmodule FaroWeb.GameComponents do
         High Card
       </span>
       <div class="flex items-center gap-2">
-        <span class="text-xs text-stone-400">Player card beats dealer card</span>
+        <span class="hidden text-xs text-stone-400 min-[430px]:inline">
+          Player card beats dealer card
+        </span>
         <%= if @bet do %>
           <.bet_marker bet={@bet} />
         <% else %>
@@ -92,7 +106,7 @@ defmodule FaroWeb.GameComponents do
       <img
         src={card_path(@rank, :spades)}
         alt={rank_label(@rank)}
-        class="h-32 w-24 drop-shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:drop-shadow-lg"
+        class="h-24 w-16 drop-shadow-md transition-transform group-hover:-translate-y-0.5 group-hover:drop-shadow-lg sm:h-32 sm:w-24"
       />
       <div class="h-4 flex items-center justify-center">
         <%= if @bet do %>
@@ -140,7 +154,7 @@ defmodule FaroWeb.GameComponents do
       <img
         src={card_path(@rank, @suit)}
         alt={card_alt(@rank, @suit)}
-        class="h-32 w-24 drop-shadow-lg"
+        class="h-24 w-16 drop-shadow-lg sm:h-32 sm:w-24"
         draggable="false"
       />
     </div>
@@ -149,7 +163,7 @@ defmodule FaroWeb.GameComponents do
 
   def card_back(assigns) do
     ~H"""
-    <img src={card_back_path()} alt="card back" class="h-32 w-24 drop-shadow-md" />
+    <img src={card_back_path()} alt="card back" class="h-24 w-16 drop-shadow-md sm:h-32 sm:w-24" />
     """
   end
 
@@ -168,7 +182,7 @@ defmodule FaroWeb.GameComponents do
     <h3 class="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
       {if @turn_number, do: "Turn #{@turn_number}", else: "Awaiting Deal"}
     </h3>
-    <div class="flex items-end gap-6">
+    <div class="flex flex-wrap items-end justify-center gap-3 sm:justify-start sm:gap-6">
       <div class="flex flex-col items-center gap-1">
         <%= if @banker_card do %>
           <.playing_card rank={@banker_card.rank} suit={@banker_card.suit} label="Banker" />
@@ -177,7 +191,7 @@ defmodule FaroWeb.GameComponents do
           <.card_back />
         <% end %>
       </div>
-      <div class="mb-8 text-xl text-stone-500">
+      <div class="mb-6 text-lg text-stone-500 sm:mb-8 sm:text-xl">
         {if @split?, do: "≡", else: "→"}
       </div>
       <div class="flex flex-col items-center gap-1">
@@ -189,7 +203,7 @@ defmodule FaroWeb.GameComponents do
         <% end %>
       </div>
       <%= if @hock_card do %>
-        <div class="mb-8 text-xl text-stone-500">→</div>
+        <div class="mb-6 text-lg text-stone-500 sm:mb-8 sm:text-xl">→</div>
         <.playing_card rank={@hock_card.rank} suit={@hock_card.suit} label="Hock" />
       <% end %>
     </div>

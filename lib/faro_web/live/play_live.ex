@@ -168,21 +168,25 @@ defmodule FaroWeb.PlayLive do
   end
 
   def handle_event("skip_ctt", _params, socket) do
-    refund =
-      case socket.assigns.ctt_placed_bet do
-        nil -> 0
-        bet -> bet.amount
-      end
+    if Enum.all?(socket.assigns.ctt_slots, &is_nil/1) do
+      refund =
+        case socket.assigns.ctt_placed_bet do
+          nil -> 0
+          bet -> bet.amount
+        end
 
-    handle_event(
-      "deal_turn",
-      %{},
-      assign(socket,
-        ctt_slots: [nil, nil, nil],
-        ctt_placed_bet: nil,
-        balance: socket.assigns.balance + refund
+      handle_event(
+        "deal_turn",
+        %{},
+        assign(socket,
+          ctt_slots: [nil, nil, nil],
+          ctt_placed_bet: nil,
+          balance: socket.assigns.balance + refund
+        )
       )
-    )
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("ctt_click_slot", %{"slot" => idx_str}, socket) do
@@ -203,7 +207,11 @@ defmodule FaroWeb.PlayLive do
     end
   end
 
-  def handle_event("ctt_drop_card", %{"rank" => rank_str, "suit" => suit_str, "slot" => slot_str}, socket) do
+  def handle_event(
+        "ctt_drop_card",
+        %{"rank" => rank_str, "suit" => suit_str, "slot" => slot_str},
+        socket
+      ) do
     if socket.assigns.ctt_placed_bet != nil do
       {:noreply, socket}
     else
@@ -396,7 +404,20 @@ defmodule FaroWeb.PlayLive do
         )
       )
       |> assign(:ctt_available, ctt_available_cards(assigns.round, assigns.ctt_slots))
-      |> assign(:ctt_deal_enabled, ctt_deal_enabled?(assigns.round.phase, assigns.ctt_slots))
+      |> assign(
+        :ctt_deal_enabled,
+        ctt_deal_enabled?(assigns.round.phase, assigns.ctt_slots, assigns.ctt_placed_bet)
+      )
+      |> assign(:ctt_skip_enabled, Enum.all?(assigns.ctt_slots, &is_nil/1))
+      |> assign(
+        :ctt_place_enabled,
+        ctt_place_enabled?(
+          assigns.ctt_placed_bet,
+          assigns.ctt_slots,
+          assigns.ctt_amount,
+          assigns.balance
+        )
+      )
       |> assign(:hock_card, hock_card(assigns.round))
       |> assign(:round_wagered, round_wagered(assigns.round))
       |> assign(:round_net, round_net(assigns.round))
@@ -546,12 +567,12 @@ defmodule FaroWeb.PlayLive do
             </div>
 
             <%!-- Available cards + Predicted Order — side by side on wider viewports --%>
-            <div class="flex flex-col sm:flex-row gap-6" id="ctt-area" phx-hook="CttDragDrop">
-              <div>
+            <div class="flex flex-col gap-6 sm:flex-row" id="ctt-area" phx-hook="CttDragDrop">
+              <div class="min-w-0">
                 <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">
                   Available Cards
                 </div>
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3">
                   <%= for card <- @ctt_available do %>
                     <div
                       class={[
@@ -577,11 +598,11 @@ defmodule FaroWeb.PlayLive do
                 </div>
               </div>
 
-              <div>
+              <div class="min-w-0">
                 <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">
                   Predicted Order
                 </div>
-                <div class="flex gap-4">
+                <div class="grid grid-cols-3 gap-2 sm:flex sm:gap-4">
                   <%= for {slot_card, idx} <- Enum.with_index(@ctt_slots) do %>
                     <div class="flex flex-col items-center gap-1">
                       <span class="text-xs text-stone-400">
@@ -607,7 +628,7 @@ defmodule FaroWeb.PlayLive do
                         <%= if slot_card != nil do %>
                           <.playing_card rank={slot_card.rank} suit={slot_card.suit} />
                         <% else %>
-                          <div class="h-24 w-16 flex items-center justify-center">
+                          <div class="flex h-24 w-16 items-center justify-center">
                             <span class="text-2xl font-bold text-stone-600">{idx + 1}</span>
                           </div>
                         <% end %>
@@ -665,118 +686,158 @@ defmodule FaroWeb.PlayLive do
 
         <%!-- Unified betting + action controls --%>
         <%= if @round.phase != :finished do %>
-          <div class="flex flex-wrap items-center gap-3 rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
+          <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
             <%= if @round.phase == :dealing do %>
-              <span class="text-xs uppercase tracking-widest text-stone-400">Bet</span>
-              <div class="flex items-center gap-1.5">
-                <button
-                  phx-click="halve_amount"
-                  class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
-                >
-                  ½
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={@bet_amount}
-                  phx-change="set_amount"
-                  phx-debounce="300"
-                  name="amount"
-                  class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-                />
-                <button
-                  phx-click="double_amount"
-                  class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
-                >
-                  2×
-                </button>
-                <span class="text-xs text-stone-500">sats</span>
-              </div>
-              <button
-                phx-click="toggle_copper"
-                class={[
-                  "rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors",
-                  if(@copper?,
-                    do: "border-orange-600 bg-orange-800 text-orange-200",
-                    else: "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500"
-                  )
-                ]}
-              >
-                Copper
-              </button>
-              <button
-                phx-click="toggle_keep_bets"
-                disabled={@repeat_disabled}
-                class={[
-                  "rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                  cond do
-                    @repeat_disabled ->
-                      "border-stone-700 bg-stone-800 text-stone-600 cursor-not-allowed"
+              <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-3">
+                <div class="flex items-center">
+                  <span class="text-xs uppercase tracking-widest text-stone-400">Bet</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                  <button
+                    phx-click="toggle_copper"
+                    class={[
+                      "rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors",
+                      if(@copper?,
+                        do: "border-orange-600 bg-orange-800 text-orange-200",
+                        else: "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500"
+                      )
+                    ]}
+                  >
+                    Copper
+                  </button>
+                  <div class="flex items-center gap-1.5">
+                    <button
+                      phx-click="halve_amount"
+                      class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+                    >
+                      ½
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={@bet_amount}
+                      phx-change="set_amount"
+                      phx-debounce="300"
+                      name="amount"
+                      class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
+                    />
+                    <button
+                      phx-click="double_amount"
+                      class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
+                    >
+                      2×
+                    </button>
+                    <span class="text-xs text-stone-500">sats</span>
+                  </div>
+                </div>
+                <div></div>
+                <div class="flex flex-wrap items-center gap-3">
+                  <button
+                    phx-click="toggle_keep_bets"
+                    disabled={@repeat_disabled}
+                    class={[
+                      "rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                      cond do
+                        @repeat_disabled ->
+                          "border-stone-700 bg-stone-800 text-stone-600 cursor-not-allowed"
 
-                    @keep_bets? ->
-                      "border-amber-600 bg-amber-900/60 text-amber-300 hover:bg-amber-900"
+                        @keep_bets? ->
+                          "border-amber-600 bg-amber-900/60 text-amber-300 hover:bg-amber-900"
 
-                    true ->
-                      "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200"
-                  end
-                ]}
-              >
-                {if @keep_bets?, do: "Repeating Bets ✓", else: "Repeat Bets"}
-              </button>
-            <% end %>
-            <%= if @round.phase == :dealing and @last_settlements != [] do %>
-              <% last_net = Enum.sum(Enum.map(@last_settlements, & &1.net)) %>
-              <div class={[
-                "ml-auto font-mono text-sm font-semibold",
-                cond do
-                  last_net > 0 -> "text-green-400"
-                  last_net < 0 -> "text-red-400"
-                  true -> "text-stone-500"
-                end
-              ]}>
-                {if last_net == 0,
-                  do: "push",
-                  else: "#{if last_net > 0, do: "+"}#{format_sats(last_net)} sats"}
+                        true ->
+                          "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200"
+                      end
+                    ]}
+                  >
+                    {if @keep_bets?, do: "Repeating Bets ✓", else: "Repeat Bets"}
+                  </button>
+                  <button
+                    phx-click="deal_turn"
+                    disabled={not @ctt_deal_enabled}
+                    class={[
+                      "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                      if(@ctt_deal_enabled,
+                        do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
+                        else:
+                          "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
+                      )
+                    ]}
+                  >
+                    Deal Turn
+                  </button>
+                  <%= if @last_settlements != [] do %>
+                    <% last_net = Enum.sum(Enum.map(@last_settlements, & &1.net)) %>
+                    <div class={[
+                      "min-h-5 font-mono text-sm font-semibold",
+                      cond do
+                        last_net > 0 -> "text-green-400"
+                        last_net < 0 -> "text-red-400"
+                        true -> "text-stone-500"
+                      end
+                    ]}>
+                      {if last_net == 0,
+                        do: "push",
+                        else: "#{if last_net > 0, do: "+"}#{format_sats(last_net)}"}
+                    </div>
+                  <% else %>
+                    <div class="min-h-5" />
+                  <% end %>
+                </div>
               </div>
             <% end %>
             <%= if @round.phase == :call_the_turn do %>
-              <div class="flex-1"></div>
-              <%= if @ctt_placed_bet == nil and Enum.all?(@ctt_slots, &(&1 != nil)) and @ctt_amount > 0 do %>
+              <div class="flex flex-wrap items-center justify-end gap-3">
+                <button
+                  phx-click="skip_ctt"
+                  disabled={not @ctt_skip_enabled}
+                  class={[
+                    "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                    if(@ctt_skip_enabled,
+                      do:
+                        "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200",
+                      else:
+                        "border-stone-700 bg-stone-800 text-stone-600 cursor-not-allowed opacity-50"
+                    )
+                  ]}
+                >
+                  Skip Final Bet
+                </button>
                 <button
                   phx-click="place_ctt_bet"
-                  disabled={@ctt_amount > @balance}
-                  class="rounded border border-amber-600 bg-amber-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-950 transition-colors hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={not @ctt_place_enabled}
+                  class={[
+                    "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                    if(@ctt_place_enabled,
+                      do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
+                      else:
+                        "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
+                    )
+                  ]}
                 >
-                  Place Bet
+                  Place Final Bet
                 </button>
-              <% end %>
-              <button
-                phx-click="skip_ctt"
-                class="rounded border border-stone-600 bg-stone-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400 transition-colors hover:border-stone-500 hover:text-stone-200"
-              >
-                Skip Final Bet
-              </button>
+                <button
+                  phx-click="deal_turn"
+                  disabled={not @ctt_deal_enabled}
+                  class={[
+                    "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                    if(@ctt_deal_enabled,
+                      do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
+                      else:
+                        "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
+                    )
+                  ]}
+                >
+                  Reveal Final Cards
+                </button>
+              </div>
             <% end %>
-            <button
-              phx-click="deal_turn"
-              disabled={not @ctt_deal_enabled}
-              class={[
-                "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                if(@round.phase != :call_the_turn and @last_settlements == [], do: "ml-auto", else: ""),
-                if(@ctt_deal_enabled,
-                  do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
-                  else: "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
-                )
-              ]}
-            >
-              Deal Turn
-            </button>
           </div>
         <% end %>
 
         <%!-- Last turn + recent turns --%>
-        <div class="rounded-lg border border-stone-700 bg-stone-800 flex divide-x divide-stone-700">
-          <div class="p-4 flex-shrink-0">
+        <div class="flex flex-col rounded-lg border border-stone-700 bg-stone-800 divide-y divide-stone-700 sm:flex-row sm:divide-x sm:divide-y-0">
+          <div class="p-4 sm:flex-shrink-0">
             <.current_turn_display
               banker_card={if @last_turn, do: @last_turn.loser}
               player_card={if @last_turn, do: @last_turn.winner}
@@ -802,7 +863,7 @@ defmodule FaroWeb.PlayLive do
                   <.link
                     href={~p"/audit/rounds/#{@db_round_id}"}
                     target="_blank"
-                    class="rounded border border-stone-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-300 transition-colors hover:border-amber-600 hover:text-amber-400"
+                    class="inline-flex items-center justify-center rounded border border-stone-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-300 transition-colors hover:border-amber-600 hover:text-amber-400"
                   >
                     Audit Round
                   </.link>
@@ -959,7 +1020,7 @@ defmodule FaroWeb.PlayLive do
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <div class="mb-2 text-xs text-stone-500">Your Prediction</div>
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-2 sm:gap-3">
                   <%= for {slot_card, idx} <- Enum.with_index(@ctt_slots) do %>
                     <%= if slot_card do %>
                       <.playing_card
@@ -980,7 +1041,7 @@ defmodule FaroWeb.PlayLive do
 
               <div>
                 <div class="mb-2 text-xs text-stone-500">Actual Order</div>
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-2 sm:gap-3">
                   <.playing_card
                     rank={@last_turn.loser.rank}
                     suit={@last_turn.loser.suit}
@@ -1245,12 +1306,17 @@ defmodule FaroWeb.PlayLive do
     end
   end
 
-  defp ctt_deal_enabled?(:call_the_turn, slots) do
-    filled = Enum.count(slots, &(&1 != nil))
-    filled == 0 or filled == 3
+  defp ctt_deal_enabled?(:call_the_turn, slots, placed_bet) do
+    Enum.all?(slots, &(&1 != nil)) and placed_bet != nil
   end
 
-  defp ctt_deal_enabled?(_, _), do: true
+  defp ctt_deal_enabled?(_, _slots, _placed_bet), do: true
+
+  defp ctt_place_enabled?(nil, slots, amount, balance) do
+    Enum.all?(slots, &(&1 != nil)) and amount > 0 and amount <= balance
+  end
+
+  defp ctt_place_enabled?(_placed_bet, _slots, _amount, _balance), do: false
 
   defp hock_card(round) do
     if round.phase == :finished and round.deck != [], do: hd(round.deck)
