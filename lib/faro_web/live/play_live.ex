@@ -676,26 +676,23 @@ defmodule FaroWeb.PlayLive do
         <%= if @round.phase != :finished do %>
           <div class="rounded-lg border border-stone-700 bg-stone-800 px-4 py-3">
             <%= if @round.phase == :dealing do %>
-              <div class="grid gap-3">
-                <div class="flex min-h-5 items-center justify-end">
-                  <%= if @last_settlements != [] do %>
-                    <% last_net = Enum.sum(Enum.map(@last_settlements, & &1.net)) %>
-                    <div class={[
-                      "font-mono text-sm font-semibold",
-                      cond do
-                        last_net > 0 -> "text-green-400"
-                        last_net < 0 -> "text-red-400"
-                        true -> "text-stone-500"
-                      end
-                    ]}>
-                      {if last_net == 0,
-                        do: "push",
-                        else: "#{if last_net > 0, do: "+"}#{format_sats(last_net)} sats"}
-                    </div>
-                  <% end %>
+              <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-3">
+                <div class="flex items-center">
+                  <span class="text-xs uppercase tracking-widest text-stone-400">Bet</span>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
-                  <span class="text-xs uppercase tracking-widest text-stone-400">Bet</span>
+                  <button
+                    phx-click="toggle_copper"
+                    class={[
+                      "rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors",
+                      if(@copper?,
+                        do: "border-orange-600 bg-orange-800 text-orange-200",
+                        else: "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500"
+                      )
+                    ]}
+                  >
+                    Copper
+                  </button>
                   <div class="flex items-center gap-1.5">
                     <button
                       phx-click="halve_amount"
@@ -720,20 +717,9 @@ defmodule FaroWeb.PlayLive do
                     </button>
                     <span class="text-xs text-stone-500">sats</span>
                   </div>
-                  <button
-                    phx-click="toggle_copper"
-                    class={[
-                      "rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors",
-                      if(@copper?,
-                        do: "border-orange-600 bg-orange-800 text-orange-200",
-                        else: "border-stone-600 bg-stone-700 text-stone-400 hover:border-stone-500"
-                      )
-                    ]}
-                  >
-                    Copper
-                  </button>
                 </div>
-                <div class="flex flex-wrap items-center justify-end gap-3">
+                <div></div>
+                <div class="flex flex-wrap items-center gap-3">
                   <button
                     phx-click="toggle_keep_bets"
                     disabled={@repeat_disabled}
@@ -767,6 +753,23 @@ defmodule FaroWeb.PlayLive do
                   >
                     Deal Turn
                   </button>
+                  <%= if @last_settlements != [] do %>
+                    <% last_net = Enum.sum(Enum.map(@last_settlements, & &1.net)) %>
+                    <div class={[
+                      "min-h-5 font-mono text-sm font-semibold",
+                      cond do
+                        last_net > 0 -> "text-green-400"
+                        last_net < 0 -> "text-red-400"
+                        true -> "text-stone-500"
+                      end
+                    ]}>
+                      {if last_net == 0,
+                        do: "push",
+                        else: "#{if last_net > 0, do: "+"}#{format_sats(last_net)}"}
+                    </div>
+                  <% else %>
+                    <div class="min-h-5" />
+                  <% end %>
                 </div>
               </div>
             <% end %>
