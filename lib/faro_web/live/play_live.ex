@@ -406,6 +406,15 @@ defmodule FaroWeb.PlayLive do
       |> assign(:ctt_available, ctt_available_cards(assigns.round, assigns.ctt_slots))
       |> assign(:ctt_deal_enabled, ctt_deal_enabled?(assigns.round.phase, assigns.ctt_slots))
       |> assign(:ctt_skip_enabled, Enum.all?(assigns.ctt_slots, &is_nil/1))
+      |> assign(
+        :ctt_place_enabled,
+        ctt_place_enabled?(
+          assigns.ctt_placed_bet,
+          assigns.ctt_slots,
+          assigns.ctt_amount,
+          assigns.balance
+        )
+      )
       |> assign(:hock_card, hock_card(assigns.round))
       |> assign(:round_wagered, round_wagered(assigns.round))
       |> assign(:round_net, round_net(assigns.round))
@@ -775,15 +784,20 @@ defmodule FaroWeb.PlayLive do
             <% end %>
             <%= if @round.phase == :call_the_turn do %>
               <div class="flex flex-wrap items-center justify-end gap-3">
-                <%= if @ctt_placed_bet == nil and Enum.all?(@ctt_slots, &(&1 != nil)) and @ctt_amount > 0 do %>
-                  <button
-                    phx-click="place_ctt_bet"
-                    disabled={@ctt_amount > @balance}
-                    class="rounded border border-amber-600 bg-amber-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-950 transition-colors hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Place Bet
-                  </button>
-                <% end %>
+                <button
+                  phx-click="place_ctt_bet"
+                  disabled={not @ctt_place_enabled}
+                  class={[
+                    "rounded border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                    if(@ctt_place_enabled,
+                      do: "border-amber-600 bg-amber-700 text-stone-950 hover:bg-amber-600",
+                      else:
+                        "border-stone-700 bg-stone-800 text-stone-500 cursor-not-allowed opacity-50"
+                    )
+                  ]}
+                >
+                  Place Bet
+                </button>
                 <button
                   phx-click="skip_ctt"
                   disabled={not @ctt_skip_enabled}
@@ -1295,6 +1309,12 @@ defmodule FaroWeb.PlayLive do
   end
 
   defp ctt_deal_enabled?(_, _), do: true
+
+  defp ctt_place_enabled?(nil, slots, amount, balance) do
+    Enum.all?(slots, &(&1 != nil)) and amount > 0 and amount <= balance
+  end
+
+  defp ctt_place_enabled?(_placed_bet, _slots, _amount, _balance), do: false
 
   defp hock_card(round) do
     if round.phase == :finished and round.deck != [], do: hd(round.deck)
