@@ -100,7 +100,86 @@ defmodule FaroWeb.Layouts do
               <%= if b = assigns[:balance] do %>
                 <span class="text-amber-400 text-sm font-mono">⚡ {format_sats(b)} sats</span>
               <% end %>
+              <button
+                id="mobile-nav-toggle"
+                type="button"
+                class="sm:hidden inline-flex size-10 items-center justify-center rounded border border-stone-700 bg-stone-900 text-stone-300 transition-colors hover:border-amber-600 hover:text-amber-400"
+                phx-click={
+                  JS.toggle(
+                    to: "#mobile-nav-menu",
+                    in:
+                      {"transition ease-out duration-150", "opacity-0 -translate-y-1",
+                       "opacity-100 translate-y-0"},
+                    out:
+                      {"transition ease-in duration-100", "opacity-100 translate-y-0",
+                       "opacity-0 -translate-y-1"}
+                  )
+                }
+                aria-label="Open navigation menu"
+              >
+                <.icon name="hero-bars-3" class="size-5" />
+              </button>
             </div>
+          </div>
+          <div id="mobile-nav-menu" class="hidden sm:hidden border-t border-stone-800 py-3">
+            <ul class="grid gap-1">
+              <li>
+                <.link
+                  navigate={~p"/"}
+                  class="block rounded px-3 py-2 text-sm uppercase tracking-wide text-stone-300 transition-colors hover:bg-stone-900 hover:text-amber-400"
+                >
+                  Home
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/play"}
+                  class="block rounded px-3 py-2 text-sm uppercase tracking-wide text-stone-300 transition-colors hover:bg-stone-900 hover:text-amber-400"
+                >
+                  Play
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/rules"}
+                  class="block rounded px-3 py-2 text-sm uppercase tracking-wide text-stone-300 transition-colors hover:bg-stone-900 hover:text-amber-400"
+                >
+                  Rules
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/odds"}
+                  class="block rounded px-3 py-2 text-sm uppercase tracking-wide text-stone-300 transition-colors hover:bg-stone-900 hover:text-amber-400"
+                >
+                  Odds
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/audit/shuffle"}
+                  class="block rounded px-3 py-2 text-sm uppercase tracking-wide text-stone-300 transition-colors hover:bg-stone-900 hover:text-amber-400"
+                >
+                  Verify
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/fairness"}
+                  class="block rounded px-3 py-2 text-sm uppercase tracking-wide text-stone-300 transition-colors hover:bg-stone-900 hover:text-amber-400"
+                >
+                  Fairness
+                </.link>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/philosophy"}
+                  class="block rounded px-3 py-2 text-sm uppercase tracking-wide text-stone-300 transition-colors hover:bg-stone-900 hover:text-amber-400"
+                >
+                  Philosophy
+                </.link>
+              </li>
+            </ul>
           </div>
         </nav>
       </header>
@@ -112,7 +191,14 @@ defmodule FaroWeb.Layouts do
       <footer class="bg-stone-950 border-t border-amber-800/30 py-4 text-center text-stone-500 text-xs tracking-wide">
         Provably fair · HMAC-SHA256 shuffle · All shuffles independently verifiable
         <span class="mx-2">·</span>
-        <a href="https://github.com/wasichu/faro" target="_blank" rel="noopener noreferrer" class="hover:text-amber-500 transition-colors">GitHub</a>
+        <a
+          href="https://github.com/wasichu/faro"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-amber-500 transition-colors"
+        >
+          GitHub
+        </a>
       </footer>
     </div>
 
