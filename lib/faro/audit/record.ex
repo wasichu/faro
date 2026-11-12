@@ -29,7 +29,7 @@ defmodule Faro.Audit.Record do
   end
 
   actions do
-    defaults [:read, :destroy, create: :*, update: :*]
+    defaults [:read, create: :*]
   end
 
   attributes do
@@ -51,6 +51,7 @@ defmodule Faro.Audit.Record do
     end
 
     attribute :client_seed, :string do
+      constraints trim?: false, allow_empty?: true
       allow_nil? false
       public? true
     end

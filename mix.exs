@@ -5,7 +5,7 @@ defmodule Faro.MixProject do
     [
       app: :faro,
       version: "0.1.0",
-      elixir: "~> 1.15",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -42,26 +42,26 @@ defmodule Faro.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:ash_oban, "~> 0.8"},
-      {:sourceror, "~> 1.8", only: [:dev, :test]},
-      {:ash, "~> 3.0"},
-      {:ash_postgres, "~> 2.0"},
-      {:ash_authentication, "~> 4.0"},
-      {:ash_authentication_phoenix, "~> 2.0"},
-      {:oban, "~> 2.0"},
-      {:stream_data, "~> 1.0"},
-      {:usage_rules, "~> 1.0", only: [:dev]},
-      {:phoenix, "~> 1.8.1"},
-      {:phoenix_ecto, "~> 4.5"},
-      {:ecto_sql, "~> 3.13"},
-      {:postgrex, ">= 0.0.0"},
-      {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:phoenix_live_view, "~> 1.1.0"},
-      {:lazy_html, ">= 0.1.0", only: :test},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:ash_oban, "~> 0.10"},
+      {:sourceror, "~> 1.13", only: [:dev, :test]},
+      {:ash, "~> 3.37"},
+      {:ash_postgres, "~> 2.15"},
+      {:ash_authentication, "~> 4.15"},
+      {:ash_authentication_phoenix, "~> 2.17"},
+      {:oban, "~> 2.24"},
+      {:stream_data, "~> 1.4"},
+      {:usage_rules, "~> 1.3", only: [:dev]},
+      {:phoenix, "~> 1.8.16"},
+      {:phoenix_ecto, "~> 4.7"},
+      {:ecto_sql, "~> 3.14"},
+      {:postgrex, "~> 0.22"},
+      {:phoenix_html, "~> 4.4"},
+      {:phoenix_live_reload, "~> 1.7", only: :dev},
+      {:phoenix_live_view, "~> 1.2"},
+      {:lazy_html, "~> 0.1", only: :test},
+      {:phoenix_live_dashboard, "~> 0.9"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
+      {:tailwind, "~> 0.5", runtime: Mix.env() == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.2.0",
@@ -69,12 +69,12 @@ defmodule Faro.MixProject do
        app: false,
        compile: false,
        depth: 1},
-      {:telemetry_metrics, "~> 1.0"},
-      {:telemetry_poller, "~> 1.0"},
-      {:gettext, "~> 0.26"},
-      {:jason, "~> 1.2"},
-      {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:telemetry_metrics, "~> 1.2"},
+      {:telemetry_poller, "~> 1.3"},
+      {:gettext, "~> 1.0"},
+      {:jason, "~> 1.4"},
+      {:dns_cluster, "~> 0.3"},
+      {:bandit, "~> 1.14"}
     ]
   end
 
@@ -99,7 +99,7 @@ defmodule Faro.MixProject do
       ],
       "docker.up": ["cmd docker compose up -d"],
       dev: ["docker.up", "phx.server"],
-      precommit: ["compile --warning-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
 

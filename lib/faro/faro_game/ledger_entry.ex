@@ -29,7 +29,7 @@ defmodule Faro.FaroGame.LedgerEntry do
   end
 
   actions do
-    defaults [:read, :destroy, create: :*, update: :*]
+    defaults [:read, create: :*]
 
     read :by_wallet do
       argument :wallet_id, :uuid, allow_nil?: false

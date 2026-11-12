@@ -1,0 +1,71 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":pinDevDependencies"
+  ],
+  "timezone": "America/Chicago",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "rangeStrategy": "bump",
+  "minimumReleaseAge": "3 days",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on monday"
+    ]
+  },
+  "packageRules": [
+    {
+      "matchManagers": [
+        "mix"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Hex dependencies"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "pinDigests": true
+    },
+    {
+      "matchManagers": [
+        "mise",
+        "dockerfile"
+      ],
+      "groupName": "runtime toolchain"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^config/config\\.exs$/"
+      ],
+      "matchStrings": [
+        "config :esbuild,\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "esbuild",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^config/config\\.exs$/"
+      ],
+      "matchStrings": [
+        "config :tailwind,\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "@tailwindcss/cli",
+      "datasourceTemplate": "npm"
+    }
+  ]
+}

@@ -13,8 +13,8 @@ defmodule Faro.GameEngine.Shuffle do
   is negligible (range ≤ 52, entropy = 2^256).
 
   Fisher-Yates (Knuth) runs from index n-1 down to 1, swapping each
-  position with a randomly chosen position in [0, i]. This guarantees a
-  uniform distribution over all n! permutations.
+  position with a randomly chosen position in [0, i]. The modulo reduction
+  introduces a negligible bias; the versioned v1 algorithm is intentionally stable.
 
   Boundary: pure function — no I/O, no randomness source beyond `seed`.
   """
@@ -42,7 +42,7 @@ defmodule Faro.GameEngine.Shuffle do
     Tuple.to_list(arr)
   end
 
-  defp fisher_yates(arr, 0, _seed, _counter), do: arr
+  defp fisher_yates(arr, i, _seed, _counter) when i <= 0, do: arr
 
   defp fisher_yates(arr, i, seed, counter) do
     j = random_int(seed, counter, i)

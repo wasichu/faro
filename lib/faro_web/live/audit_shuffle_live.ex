@@ -5,6 +5,8 @@ defmodule FaroWeb.AuditShuffleLive do
   alias FaroWeb.GameComponents
 
   def mount(params, _session, socket) do
+    params = sanitize_params(params)
+
     {:ok,
      assign(socket,
        page_title: "Manual Shuffle Verifier",
@@ -19,6 +21,8 @@ defmodule FaroWeb.AuditShuffleLive do
   end
 
   def handle_event("update_form", params, socket) do
+    params = sanitize_params(params)
+
     {:noreply,
      assign(socket,
        server_seed: Map.get(params, "server_seed", socket.assigns.server_seed),
@@ -30,17 +34,20 @@ defmodule FaroWeb.AuditShuffleLive do
      )}
   end
 
-  def handle_event("verify", _params, socket) do
+  def handle_event("verify", params, socket) do
+    {:noreply, socket} = handle_event("update_form", params, socket)
+
     %{server_seed: seed_hex, server_seed_hash: hash, client_seed: client_seed, nonce: nonce_str} =
       socket.assigns
 
-    with {:seed, {:ok, seed_binary}} <-
+    with {:seed, {:ok, seed_binary}} when byte_size(seed_binary) == 32 <-
            {:seed, Base.decode16(String.trim(seed_hex), case: :mixed)},
-         {:nonce, {n, ""}} when n >= 0 <- {:nonce, Integer.parse(String.trim(nonce_str))} do
+         {:nonce, {n, ""}} when n >= 0 and n < 18_446_744_073_709_551_616 <-
+           {:nonce, Integer.parse(String.trim(nonce_str))} do
       hash_trimmed = String.trim(hash) |> String.downcase()
       hash_ok = hash_trimmed == "" or Fairness.verify(hash_trimmed, seed_binary)
 
-      shuffle_seed = Fairness.derive_shuffle_seed(seed_binary, String.trim(client_seed), n)
+      shuffle_seed = Fairness.derive_shuffle_seed(seed_binary, client_seed, n)
       deck = Shuffle.shuffle(Deck.new(), shuffle_seed)
 
       turns =
@@ -65,7 +72,7 @@ defmodule FaroWeb.AuditShuffleLive do
 
       {:noreply, assign(socket, result: result, error: nil)}
     else
-      {:seed, :error} ->
+      {:seed, _} ->
         {:noreply,
          assign(socket,
            error:
@@ -75,13 +82,33 @@ defmodule FaroWeb.AuditShuffleLive do
 
       {:nonce, _} ->
         {:noreply,
-         assign(socket, error: "Invalid nonce — must be a non-negative integer.", result: nil)}
+         assign(socket, error: "Invalid nonce — must be an unsigned 64-bit integer.", result: nil)}
     end
   end
 
+  defp sanitize_params(params) do
+    Map.filter(params, fn {key, value} ->
+      key in ~w(server_seed server_seed_hash client_seed nonce) and is_binary(value) and
+        byte_size(value) <= 1024
+    end)
+  end
+
   def render(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :form,
+        to_form(%{
+          "server_seed" => assigns.server_seed,
+          "server_seed_hash" => assigns.server_seed_hash,
+          "client_seed" => assigns.client_seed,
+          "nonce" => assigns.nonce,
+          "algorithm_version" => assigns.algorithm_version
+        })
+      )
+
     ~H"""
-    <div class="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 space-y-10">
+    <div id="shuffle-verifier" class="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 space-y-10">
       <div>
         <h1 class="font-serif text-3xl font-bold text-amber-400">Manual Shuffle Verifier</h1>
         <p class="mt-2 text-stone-400 leading-relaxed">
@@ -91,16 +118,21 @@ defmodule FaroWeb.AuditShuffleLive do
       </div>
 
       <%!-- Input form --%>
-      <form phx-change="update_form" phx-submit="verify" class="space-y-4">
+      <.form
+        for={@form}
+        id="shuffle-verifier-form"
+        phx-change="update_form"
+        phx-submit="verify"
+        class="space-y-4"
+      >
         <div class="rounded-lg border border-stone-700 bg-stone-800 p-5 space-y-4">
           <div class="space-y-1">
             <label class="block text-xs font-semibold uppercase tracking-widest text-stone-400">
               Server Seed (hex)
             </label>
-            <input
+            <.input
               type="text"
-              name="server_seed"
-              value={@server_seed}
+              field={@form[:server_seed]}
               placeholder="64-character hex string revealed after the round"
               phx-debounce="300"
               class="w-full rounded border border-stone-600 bg-stone-900 px-3 py-2 font-mono text-sm text-stone-100 placeholder-stone-600 focus:border-amber-500 focus:outline-none"
@@ -112,10 +144,9 @@ defmodule FaroWeb.AuditShuffleLive do
               Server Seed Hash / Commitment
               <span class="text-stone-600 normal-case">(optional — for hash verification)</span>
             </label>
-            <input
+            <.input
               type="text"
-              name="server_seed_hash"
-              value={@server_seed_hash}
+              field={@form[:server_seed_hash]}
               placeholder="SHA-256 commitment published before the round"
               phx-debounce="300"
               class="w-full rounded border border-stone-600 bg-stone-900 px-3 py-2 font-mono text-sm text-stone-100 placeholder-stone-600 focus:border-amber-500 focus:outline-none"
@@ -127,10 +158,9 @@ defmodule FaroWeb.AuditShuffleLive do
               <label class="block text-xs font-semibold uppercase tracking-widest text-stone-400">
                 Client Seed
               </label>
-              <input
+              <.input
                 type="text"
-                name="client_seed"
-                value={@client_seed}
+                field={@form[:client_seed]}
                 placeholder="Your client seed"
                 phx-debounce="300"
                 class="w-full rounded border border-stone-600 bg-stone-900 px-3 py-2 font-mono text-sm text-stone-100 placeholder-stone-600 focus:border-amber-500 focus:outline-none"
@@ -140,11 +170,10 @@ defmodule FaroWeb.AuditShuffleLive do
               <label class="block text-xs font-semibold uppercase tracking-widest text-stone-400">
                 Nonce
               </label>
-              <input
+              <.input
                 type="number"
                 min="0"
-                name="nonce"
-                value={@nonce}
+                field={@form[:nonce]}
                 phx-debounce="300"
                 class="w-full rounded border border-stone-600 bg-stone-900 px-3 py-2 font-mono text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
               />
@@ -155,10 +184,9 @@ defmodule FaroWeb.AuditShuffleLive do
             <label class="block text-xs font-semibold uppercase tracking-widest text-stone-400">
               Algorithm Version
             </label>
-            <input
+            <.input
               type="text"
-              name="algorithm_version"
-              value={@algorithm_version}
+              field={@form[:algorithm_version]}
               disabled
               class="w-full rounded border border-stone-700 bg-stone-900 px-3 py-2 font-mono text-sm text-stone-500 cursor-not-allowed"
             />
@@ -166,7 +194,10 @@ defmodule FaroWeb.AuditShuffleLive do
         </div>
 
         <%= if @error do %>
-          <div class="rounded border border-red-700 bg-red-950 px-4 py-3 text-sm text-red-300">
+          <div
+            id="verification-error"
+            class="rounded border border-red-700 bg-red-950 px-4 py-3 text-sm text-red-300"
+          >
             {@error}
           </div>
         <% end %>
@@ -177,11 +208,11 @@ defmodule FaroWeb.AuditShuffleLive do
         >
           Verify Shuffle
         </button>
-      </form>
+      </.form>
 
       <%!-- Results --%>
       <%= if @result do %>
-        <div class="space-y-6">
+        <div id="verification-result" class="space-y-6">
           <%!-- Verification status --%>
           <div class="rounded-lg border border-stone-700 bg-stone-800 p-4 space-y-3">
             <h2 class="text-sm font-bold uppercase tracking-widest text-amber-400">

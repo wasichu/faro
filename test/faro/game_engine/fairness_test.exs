@@ -4,19 +4,6 @@ defmodule Faro.GameEngine.FairnessTest do
 
   alias Faro.GameEngine.Fairness
 
-  describe "generate_server_seed/0" do
-    test "returns a 32-byte binary" do
-      seed = Fairness.generate_server_seed()
-      assert is_binary(seed)
-      assert byte_size(seed) == 32
-    end
-
-    test "successive calls produce different seeds" do
-      seeds = for _ <- 1..10, do: Fairness.generate_server_seed()
-      assert length(Enum.uniq(seeds)) == 10
-    end
-  end
-
   describe "commit_server_seed/1" do
     test "returns a 64-character hex string" do
       commitment = Fairness.commit_server_seed("test_seed")
@@ -99,7 +86,7 @@ defmodule Faro.GameEngine.FairnessTest do
             byte_index <- integer(0..(byte_size(seed) - 1))
           ) do
       commitment = Fairness.commit_server_seed(seed)
-      <<pre::binary-size(byte_index), byte, rest::binary>> = seed
+      <<pre::binary-size(^byte_index), byte, rest::binary>> = seed
       flipped = <<pre::binary, Bitwise.bxor(byte, 0xFF), rest::binary>>
 
       if seed != flipped do

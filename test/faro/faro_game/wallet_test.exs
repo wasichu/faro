@@ -2,7 +2,7 @@ defmodule Faro.FaroGame.WalletTest do
   use Faro.DataCase, async: true
 
   alias Faro.FaroGame.Wallet
-  alias Faro.GameEngine.{Bet, Deck, Fairness, Round, Shuffle}
+  alias Faro.GameEngine.{Bet, Deck, Round}
 
   @starting_balance 1_000_000
 
@@ -20,11 +20,7 @@ defmodule Faro.FaroGame.WalletTest do
   end
 
   defp deal_one_turn(bets) do
-    seed = Fairness.generate_server_seed()
-    client_seed = "test-seed"
-    shuffle_seed = Fairness.derive_shuffle_seed(seed, client_seed, 1)
-    deck = Shuffle.shuffle(Deck.new(), shuffle_seed)
-    round = Round.new(deck)
+    round = Round.new(Deck.new())
     {turn, _new_round} = Round.deal_turn(round, bets)
     turn
   end
@@ -214,6 +210,31 @@ defmodule Faro.FaroGame.WalletTest do
     end
   end
 
+  test "rejects a balance that does not reconcile with its ledger entries" do
+    wallet = create_wallet()
+    turn = deal_one_turn([%Bet{rank: 1, amount: 100}])
+    assert {:error, _} = Wallet.record_turn(wallet, turn, wallet.balance_sats - 1)
+    assert length(ledger_entries(wallet)) == 1
+    assert Faro.FaroGame.get_wallet!(wallet.id).balance_sats == wallet.balance_sats
+  end
+
+  test "rejects an overdraft even when the forged post-turn balance is positive" do
+    wallet = create_wallet()
+    turn = deal_one_turn([%Bet{rank: 1, amount: wallet.balance_sats + 1}])
+    assert {:error, _} = Wallet.record_turn(wallet, turn, wallet.balance_sats)
+    assert length(ledger_entries(wallet)) == 1
+  end
+
+  test "stale wallet updates cannot overwrite a newer settlement" do
+    wallet = create_wallet()
+    turn = deal_one_turn([%Bet{rank: 3, amount: 100}])
+    assert {:ok, updated} = Wallet.record_turn(wallet, turn, wallet.balance_sats + 100)
+    count = length(ledger_entries(wallet))
+    assert {:error, _} = Wallet.record_turn(wallet, turn, wallet.balance_sats + 100)
+    assert Faro.FaroGame.get_wallet!(wallet.id).balance_sats == updated.balance_sats
+    assert length(ledger_entries(wallet)) == count
+  end
+
   # ---------------------------------------------------------------------------
   # Private helpers
   # ---------------------------------------------------------------------------
@@ -221,29 +242,17 @@ defmodule Faro.FaroGame.WalletTest do
   defp turn_total_bets(turn), do: Enum.sum(Enum.map(turn.bets, & &1.amount))
   defp turn_delta(turn), do: Enum.sum(Enum.map(turn.settlements, &(&1.bet.amount + &1.net)))
 
-  # Deal turns until we get one that has at least one settlement.
-  defp find_turn_with_bet_rank(rank) do
-    bet = %Bet{rank: rank, amount: 1_000, copper?: false}
+  defp find_turn_with_bet_rank(rank), do: known_turn(1, rank)
+  defp find_turn_where_bet_loses, do: known_turn(5, 6)
 
-    Enum.find_value(1..52, fn _ ->
-      t = deal_one_turn([bet])
-      if t.settlements != [], do: t
-    end) || deal_one_turn([bet])
-  end
-
-  # Deal turns until we get one where the bet results in a pure loss (no return).
-  defp find_turn_where_bet_loses do
-    bet = %Bet{rank: 5, amount: 1_000, copper?: false}
-
-    Enum.find_value(1..200, fn _ ->
-      t = deal_one_turn([bet])
-
-      lost =
-        Enum.any?(t.settlements, fn s ->
-          s.outcome == :loss and s.bet.amount + s.net == 0
-        end)
-
-      if lost, do: t
-    end) || deal_one_turn([bet])
+  defp known_turn(loser_rank, winner_rank) do
+    alias Faro.GameEngine.Card
+    soda = %Card{rank: 13, suit: :hearts}
+    loser = %Card{rank: loser_rank, suit: :spades}
+    winner = %Card{rank: winner_rank, suit: :clubs}
+    deck = [soda, loser, winner | Deck.new() -- [soda, loser, winner]]
+    bet_rank = if loser_rank == 5, do: 5, else: winner_rank
+    {turn, _} = Round.deal_turn(Round.new(deck), [%Bet{rank: bet_rank, amount: 1_000}])
+    turn
   end
 end

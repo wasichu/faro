@@ -3,8 +3,7 @@ defmodule FaroWeb.AuditRoundLive do
 
   alias Faro.Audit, as: AuditDomain
   alias Faro.FaroGame
-  alias Faro.FaroGame.Serializer
-  alias Faro.GameEngine.{Card, Deck, Fairness, Round, Shuffle}
+  alias Faro.Audit.Verification
   alias FaroWeb.GameComponents
 
   def mount(%{"id" => id}, _session, socket) do
@@ -48,7 +47,7 @@ defmodule FaroWeb.AuditRoundLive do
 
   def render(%{not_found: true} = assigns) do
     ~H"""
-    <div class="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
+    <div id="round-not-found" class="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
       <div class="rounded-lg border border-stone-700 bg-stone-800 p-8 text-center space-y-3">
         <p class="text-stone-400">Round not found.</p>
         <.link navigate={~p"/play"} class="text-amber-400 hover:underline text-sm">
@@ -61,7 +60,7 @@ defmodule FaroWeb.AuditRoundLive do
 
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8 space-y-8">
+    <div id="round-audit" class="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8 space-y-8">
       <div>
         <h1 class="font-serif text-3xl font-bold text-amber-400">Round Audit</h1>
         <p class="mt-1 font-mono text-xs text-stone-500">{@round.id}</p>
@@ -252,17 +251,27 @@ defmodule FaroWeb.AuditRoundLive do
         <h2 class="text-sm font-bold uppercase tracking-widest text-amber-400">
           Verification
         </h2>
-        <span class={[
-          "rounded px-3 py-1 text-xs font-bold uppercase tracking-widest",
-          if(@verification.overall,
-            do: "bg-green-900 text-green-400",
-            else: "bg-red-900 text-red-400"
-          )
-        ]}>
+        <span
+          id="round-verification"
+          data-verified={to_string(@verification.overall)}
+          class={[
+            "rounded px-3 py-1 text-xs font-bold uppercase tracking-widest",
+            if(@verification.overall,
+              do: "bg-green-900 text-green-400",
+              else: "bg-red-900 text-red-400"
+            )
+          ]}
+        >
           {if @verification.overall, do: "✓ All Checks Pass", else: "✗ Verification Failed"}
         </span>
       </div>
       <div class="space-y-2">
+        <.check_row
+          label="Algorithm"
+          ok={@verification.algorithm_ok}
+          pass_text="Supported shuffle algorithm"
+          fail_text="Unsupported shuffle algorithm"
+        />
         <.check_row
           label="Seed hash"
           ok={@verification.hash_ok}
@@ -389,75 +398,7 @@ defmodule FaroWeb.AuditRoundLive do
     end
   end
 
-  defp run_verification(round, turns) do
-    cond do
-      round.status != :finished ->
-        %{
-          status: :incomplete,
-          message: "Round not yet finished — server seed has not been revealed."
-        }
-
-      round.server_seed == nil ->
-        %{status: :incomplete, message: "Server seed not yet revealed."}
-
-      true ->
-        decoded_deck = Serializer.decode_deck(round.shuffled_deck)
-        soda = %Card{rank: round.soda_rank, suit: String.to_existing_atom(round.soda_suit)}
-
-        hash_ok = Fairness.verify(round.server_seed_hash, round.server_seed)
-
-        shuffle_seed =
-          Fairness.derive_shuffle_seed(round.server_seed, round.client_seed, round.nonce)
-
-        shuffle_seed_hex = Base.encode16(shuffle_seed, case: :lower)
-        reproduced = Shuffle.shuffle(Deck.new(), shuffle_seed)
-        deck_ok = reproduced == decoded_deck
-
-        soda_ok = decoded_deck != [] and hd(decoded_deck) == soda
-
-        {cards_ok, settlements_ok} = replay_and_verify(decoded_deck, turns)
-
-        %{
-          status: :complete,
-          hash_ok: hash_ok,
-          deck_ok: deck_ok,
-          soda_ok: soda_ok,
-          cards_ok: cards_ok,
-          settlements_ok: settlements_ok,
-          overall: hash_ok && deck_ok && soda_ok && cards_ok && settlements_ok,
-          deck: decoded_deck,
-          shuffle_seed_hex: shuffle_seed_hex
-        }
-    end
-  end
-
-  defp replay_and_verify(decoded_deck, turns) do
-    engine_round = Round.new(decoded_deck)
-
-    {_, cards_ok, settlements_ok} =
-      Enum.reduce(turns, {engine_round, true, true}, fn turn, {eng_round, cards_acc, sett_acc} ->
-        decoded_bets = Enum.map(turn.bets, &Serializer.decode_bet/1)
-        {completed, new_round} = Round.deal_turn(eng_round, decoded_bets)
-
-        cards_match =
-          completed.loser.rank == turn.loser_rank &&
-            to_string(completed.loser.suit) == turn.loser_suit &&
-            completed.winner.rank == turn.winner_rank &&
-            to_string(completed.winner.suit) == turn.winner_suit
-
-        stored_settlements = Enum.map(turn.settlements, &Serializer.decode_settlement/1)
-
-        settlements_match =
-          length(stored_settlements) == length(completed.settlements) &&
-            Enum.all?(Enum.zip(stored_settlements, completed.settlements), fn {s, c} ->
-              s.outcome == c.outcome && s.net == c.net
-            end)
-
-        {new_round, cards_acc && cards_match, sett_acc && settlements_match}
-      end)
-
-    {cards_ok, settlements_ok}
-  end
+  defp run_verification(round, turns), do: Verification.verify(round, turns)
 
   defp hock_from_verification(%{status: :complete, deck: deck}) when length(deck) == 52,
     do: List.last(deck)
@@ -468,18 +409,24 @@ defmodule FaroWeb.AuditRoundLive do
   defp rank_label(11), do: "J"
   defp rank_label(12), do: "Q"
   defp rank_label(13), do: "K"
-  defp rank_label(n), do: Integer.to_string(n)
+  defp rank_label(n) when is_integer(n), do: Integer.to_string(n)
+  defp rank_label(_), do: "?"
 
   defp suit_symbol(:spades), do: "♠"
   defp suit_symbol(:hearts), do: "♥"
   defp suit_symbol(:diamonds), do: "♦"
   defp suit_symbol(:clubs), do: "♣"
-  defp suit_symbol(s) when is_binary(s), do: suit_symbol(String.to_existing_atom(s))
+  defp suit_symbol("spades"), do: "♠"
+  defp suit_symbol("hearts"), do: "♥"
+  defp suit_symbol("diamonds"), do: "♦"
+  defp suit_symbol("clubs"), do: "♣"
+  defp suit_symbol(_), do: "?"
 
   defp suit_color("hearts"), do: "text-rose-400"
   defp suit_color("diamonds"), do: "text-rose-400"
   defp suit_color("spades"), do: "text-stone-200"
   defp suit_color("clubs"), do: "text-stone-200"
+  defp suit_color(_), do: "text-stone-500"
 
   defp bet_description(%{"type" => "rank", "rank" => rank, "amount" => amount, "copper" => true}),
     do: "copper #{rank_label(rank)} ×#{amount}"
@@ -508,8 +455,10 @@ defmodule FaroWeb.AuditRoundLive do
   defp settlement_color("split"), do: "text-amber-400"
   defp settlement_color(_), do: "text-stone-400"
 
-  defp settlement_label(outcome, net) do
+  defp settlement_label(outcome, net) when is_binary(outcome) and is_integer(net) do
     prefix = if net > 0, do: "+", else: ""
     "#{outcome} #{prefix}#{net}"
   end
+
+  defp settlement_label(_, _), do: "Invalid settlement"
 end

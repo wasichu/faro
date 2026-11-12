@@ -5,7 +5,7 @@ defmodule Faro.GameEngine.AuditTest do
   alias Faro.GameEngine.{Audit, Deck, Fairness, Round, Shuffle}
 
   defp build_transcript do
-    server_seed = Fairness.generate_server_seed()
+    server_seed = :binary.copy(<<42>>, 32)
     client_seed = "player_client_seed"
     nonce = 42
     commitment = Fairness.commit_server_seed(server_seed)
@@ -53,7 +53,7 @@ defmodule Faro.GameEngine.AuditTest do
     end
 
     test "records settlements on each turn entry" do
-      server_seed = Fairness.generate_server_seed()
+      server_seed = :binary.copy(<<42>>, 32)
       client_seed = "cs"
       nonce = 1
       commitment = Fairness.commit_server_seed(server_seed)
@@ -165,7 +165,7 @@ defmodule Faro.GameEngine.AuditTest do
 
   describe "append_turn/4" do
     test "adds turn records in order" do
-      server_seed = Fairness.generate_server_seed()
+      server_seed = :binary.copy(<<42>>, 32)
       client_seed = "cs"
       nonce = 1
       commitment = Fairness.commit_server_seed(server_seed)

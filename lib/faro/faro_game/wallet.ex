@@ -27,7 +27,7 @@ defmodule Faro.FaroGame.Wallet do
   end
 
   actions do
-    defaults [:read, :destroy, update: :*]
+    defaults [:read, :destroy]
 
     create :create_with_topup do
       accept [:game_session_id]
@@ -53,6 +53,7 @@ defmodule Faro.FaroGame.Wallet do
     end
 
     update :record_turn do
+      accept []
       require_atomic? false
 
       argument :bets, {:array, :map}, allow_nil?: false
@@ -65,6 +66,8 @@ defmodule Faro.FaroGame.Wallet do
         balance = Ash.Changeset.get_argument(changeset, :post_deal_balance)
 
         changeset
+        |> validate_turn_accounting()
+        |> Ash.Changeset.filter(%{balance_sats: changeset.data.balance_sats})
         |> Ash.Changeset.change_attribute(:balance_sats, balance)
         |> Ash.Changeset.after_action(fn changeset, wallet ->
           bets = Ash.Changeset.get_argument(changeset, :bets)
@@ -131,6 +134,10 @@ defmodule Faro.FaroGame.Wallet do
     has_many :ledger_entries, Faro.FaroGame.LedgerEntry
   end
 
+  identities do
+    identity :unique_session, [:game_session_id]
+  end
+
   # ---------------------------------------------------------------------------
   # Public API — thin wrappers that convert engine structs to action arguments.
   # These preserve the existing call signature used by PlayLive and tests.
@@ -170,6 +177,43 @@ defmodule Faro.FaroGame.Wallet do
       })
     end
   end
+
+  defp validate_turn_accounting(changeset) do
+    bets = Ash.Changeset.get_argument(changeset, :bets)
+    settlements = Ash.Changeset.get_argument(changeset, :settlements)
+    balance = Ash.Changeset.get_argument(changeset, :post_deal_balance)
+
+    valid? =
+      is_list(bets) and is_list(settlements) and
+        Enum.all?(bets, &valid_bet_amount?/1) and
+        Enum.all?(settlements, fn
+          %{bet: bet, net: net} ->
+            valid_bet_amount?(bet) and is_integer(net) and net >= -bet.amount
+
+          _ ->
+            false
+        end)
+
+    valid? =
+      valid? and
+        Enum.sort(Enum.map(bets, & &1.amount)) ==
+          Enum.sort(Enum.map(settlements, & &1.bet.amount)) and
+        Enum.sum(Enum.map(bets, & &1.amount)) <= changeset.data.balance_sats and
+        balance == changeset.data.balance_sats + Enum.sum(Enum.map(settlements, & &1.net)) and
+        balance >= 0 and balance <= 9_223_372_036_854_775_807
+
+    if valid? do
+      changeset
+    else
+      Ash.Changeset.add_error(changeset,
+        field: :post_deal_balance,
+        message: "must reconcile with the funded wagers and settlements"
+      )
+    end
+  end
+
+  defp valid_bet_amount?(%{amount: amount}), do: Faro.GameEngine.Wager.valid_amount?(amount)
+  defp valid_bet_amount?(_), do: false
 
   @doc "Fetches a wallet by id."
   def get(id), do: Faro.FaroGame.get_wallet(id)

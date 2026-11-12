@@ -41,6 +41,11 @@ defmodule Faro.FaroGame.Round do
   actions do
     defaults [:read, :destroy, create: :*, update: :*]
 
+    update :advance_turn do
+      accept [:status, :server_seed]
+      change set_attribute(:updated_at, &DateTime.utc_now/0)
+    end
+
     action :cleanup_abandoned_rounds do
       run Faro.FaroGame.RoundCleanup
     end
@@ -55,6 +60,7 @@ defmodule Faro.FaroGame.Round do
     end
 
     attribute :client_seed, :string do
+      constraints trim?: false, allow_empty?: true
       allow_nil? false
       public? true
     end

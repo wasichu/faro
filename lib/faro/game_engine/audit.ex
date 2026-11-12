@@ -31,7 +31,7 @@ defmodule Faro.GameEngine.Audit do
   state, no Ecto/Ash calls.
   """
 
-  alias Faro.GameEngine.{Deck, Fairness, Round, Shuffle, Turn}
+  alias Faro.GameEngine.{Deck, Fairness, Round, Shuffle, Turn, Wager}
 
   @algorithm_version Fairness.algorithm_version()
 
@@ -40,6 +40,7 @@ defmodule Faro.GameEngine.Audit do
           loser_rank: pos_integer(),
           winner_rank: pos_integer(),
           split?: boolean(),
+          bets: list(),
           settlements: list()
         }
 
@@ -101,6 +102,7 @@ defmodule Faro.GameEngine.Audit do
       loser_rank: turn.loser.rank,
       winner_rank: turn.winner.rank,
       split?: turn.split?,
+      bets: turn.bets,
       settlements: settlements
     }
 
@@ -115,12 +117,16 @@ defmodule Faro.GameEngine.Audit do
 
   @doc """
   Performs full verification: commitment, shuffle reproduction, and
-  per-turn card position checks. Sets `verified?` accordingly.
+  all 25 sequential turns, split flags, wagers, and settlements. Sets `verified?` accordingly.
   """
   @spec verify_full(t()) :: t()
   def verify_full(%__MODULE__{} = transcript) do
-    commitment_ok = Fairness.verify(transcript.server_commitment, transcript.server_seed)
+    checks = checks(transcript)
+    %{transcript | verified?: Enum.all?(Map.values(checks))}
+  end
 
+  @doc "Independent verification results, shared by the engine and persisted audit pages."
+  def checks(%__MODULE__{} = transcript) do
     seed =
       Fairness.derive_shuffle_seed(
         transcript.server_seed,
@@ -129,22 +135,53 @@ defmodule Faro.GameEngine.Audit do
       )
 
     reproduced = Shuffle.shuffle(Deck.new(), seed)
-    deck_ok = reproduced == transcript.shuffled_deck
+    {cards_ok, settlements_ok} = replay_checks(transcript.turns, reproduced)
 
-    soda_ok = transcript.soda == Enum.at(transcript.shuffled_deck, 0)
-    cards_ok = verify_cards(transcript.turns, transcript.shuffled_deck)
-
-    %{transcript | verified?: commitment_ok && deck_ok && soda_ok && cards_ok}
+    %{
+      algorithm_ok: transcript.algorithm_version == @algorithm_version,
+      hash_ok: Fairness.verify(transcript.server_commitment, transcript.server_seed),
+      deck_ok: reproduced == transcript.shuffled_deck,
+      soda_ok: transcript.soda == hd(reproduced),
+      cards_ok: cards_ok,
+      settlements_ok: settlements_ok
+    }
+  rescue
+    _error in [ArgumentError, FunctionClauseError, KeyError, BadMapError, Protocol.UndefinedError] ->
+      %{
+        algorithm_ok: false,
+        hash_ok: false,
+        deck_ok: false,
+        soda_ok: false,
+        cards_ok: false,
+        settlements_ok: false
+      }
   end
 
-  defp verify_cards(turns, deck) do
-    # deck[0] = soda; turn k: loser at 2k-1, winner at 2k
-    Enum.all?(turns, fn %{turn_number: k, loser_rank: lr, winner_rank: wr} ->
-      loser = Enum.at(deck, 2 * k - 1)
-      winner = Enum.at(deck, 2 * k)
-      loser != nil && winner != nil && loser.rank == lr && winner.rank == wr
-    end)
+  defp replay_checks(turns, deck) when is_list(turns) and length(turns) == 25 do
+    {_, cards_ok, settlements_ok} =
+      Enum.reduce(turns, {Round.new(deck), true, true}, fn record,
+                                                           {round, cards_ok, settlements_ok} ->
+        # Wagers must be independent of settlements: reconstructing them from
+        # payouts would allow an omitted payout to erase its wager as well.
+        bets = record.bets
+        true = Enum.all?(bets, &Wager.valid?/1)
+        {turn, next_round} = Round.deal_turn(round, bets)
+
+        cards_match =
+          record.turn_number == turn.index and
+            record.loser_rank == turn.loser.rank and record.winner_rank == turn.winner.rank and
+            record.split? == turn.split?
+
+        {next_round, cards_ok and cards_match,
+         settlements_ok and record.settlements == turn.settlements}
+      end)
+
+    {cards_ok, settlements_ok}
+  rescue
+    MatchError -> {false, false}
   end
+
+  defp replay_checks(_turns, _deck), do: {false, false}
 
   defp turn_record(%Turn{} = turn) do
     %{
@@ -152,6 +189,7 @@ defmodule Faro.GameEngine.Audit do
       loser_rank: turn.loser.rank,
       winner_rank: turn.winner.rank,
       split?: turn.split?,
+      bets: turn.bets,
       settlements: turn.settlements
     }
   end

@@ -1,5 +1,5 @@
 defmodule Faro.FaroGame.CleanupTest do
-  use Faro.DataCase, async: true
+  use Faro.DataCase, async: false
 
   import Ecto.Query
 
@@ -58,8 +58,9 @@ defmodule Faro.FaroGame.CleanupTest do
 
   describe "GameSessionCleanup" do
     setup do
+      previous = Application.fetch_env!(:faro, :cleanup)
       Application.put_env(:faro, :cleanup, session_retention_hours: 1, round_retention_hours: 1)
-      on_exit(fn -> Application.delete_env(:faro, :cleanup) end)
+      on_exit(fn -> Application.put_env(:faro, :cleanup, previous) end)
       :ok
     end
 
@@ -111,8 +112,9 @@ defmodule Faro.FaroGame.CleanupTest do
 
   describe "RoundCleanup" do
     setup do
+      previous = Application.fetch_env!(:faro, :cleanup)
       Application.put_env(:faro, :cleanup, session_retention_hours: 1, round_retention_hours: 1)
-      on_exit(fn -> Application.delete_env(:faro, :cleanup) end)
+      on_exit(fn -> Application.put_env(:faro, :cleanup, previous) end)
       :ok
     end
 

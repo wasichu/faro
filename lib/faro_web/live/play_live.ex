@@ -4,39 +4,16 @@ defmodule FaroWeb.PlayLive do
   require Logger
 
   alias Faro.GameEngine.{Bet, CallTheTurnBet, Card, Deck, Fairness, HighCardBet, Round, Shuffle}
-  alias Faro.GameEngine.Audit, as: EngineAudit
-  alias Faro.Audit
   alias Faro.FaroGame
   alias Faro.FaroGame.Serializer
-  alias Faro.FaroGame.Wallet
 
   @default_bet 1_000
 
   def mount(_params, _session, socket) do
-    session_id =
-      case FaroGame.create_session(%{}) do
-        {:ok, session} ->
-          session.id
-
-        {:error, e} ->
-          Logger.warning("GameSession creation failed: #{inspect(e)}")
-          nil
-      end
-
-    {wallet, balance} =
-      case Wallet.create_with_topup(%{game_session_id: session_id}) do
-        {:ok, w} ->
-          {w, w.balance_sats}
-
-        {:error, e} ->
-          Logger.warning("Wallet creation failed: #{inspect(e)}")
-          {nil, 1_000_000}
-      end
-
     {:ok,
      socket
-     |> assign(page_title: "Play", session_id: session_id, wallet: wallet)
-     |> start_round(1, balance)}
+     |> assign(page_title: "Play", session_id: nil, wallet: nil)
+     |> start_round(1, 1_000_000)}
   end
 
   # ---------------------------------------------------------------------------
@@ -44,9 +21,12 @@ defmodule FaroWeb.PlayLive do
   # ---------------------------------------------------------------------------
 
   def handle_event("set_amount", %{"amount" => val}, socket) do
-    case Integer.parse(val) do
-      {n, ""} when n > 0 -> {:noreply, assign(socket, bet_amount: n)}
-      _ -> {:noreply, socket}
+    case parse_integer(val) do
+      {:ok, n} when n > 0 and n <= 9_223_372_036_854_775_807 ->
+        {:noreply, assign(socket, bet_amount: n)}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -55,7 +35,8 @@ defmodule FaroWeb.PlayLive do
   end
 
   def handle_event("double_amount", _params, socket) do
-    {:noreply, assign(socket, bet_amount: socket.assigns.bet_amount * 2)}
+    {:noreply,
+     assign(socket, bet_amount: min(socket.assigns.bet_amount * 2, 9_223_372_036_854_775_807))}
   end
 
   def handle_event("halve_amount", _params, socket) do
@@ -66,11 +47,16 @@ defmodule FaroWeb.PlayLive do
     %{balance: balance, bet_amount: amount, copper?: copper?, pending_bets: bets, round: round} =
       socket.assigns
 
-    rank = String.to_integer(rank_str)
+    rank =
+      case parse_integer(rank_str) do
+        {:ok, rank} -> rank
+        _ -> nil
+      end
+
     existing = Enum.find_index(bets, &match?(%Bet{rank: ^rank}, &1))
 
     cond do
-      round.phase != :dealing ->
+      round.phase != :dealing or not Card.valid_rank?(rank) ->
         {:noreply, socket}
 
       existing != nil ->
@@ -109,22 +95,26 @@ defmodule FaroWeb.PlayLive do
     end
   end
 
-  def handle_event("remove_bet", %{"index" => idx_str}, socket) do
-    if socket.assigns.round.phase != :dealing do
-      {:noreply, socket}
-    else
-      idx = String.to_integer(idx_str)
-      {bet, new_bets} = List.pop_at(socket.assigns.pending_bets, idx)
-
+  def handle_event("remove_bet", %{"index" => value}, socket) do
+    with :dealing <- socket.assigns.round.phase,
+         {:ok, index} when index >= 0 <- parse_integer(value),
+         %{} = bet <- Enum.at(socket.assigns.pending_bets, index) do
       {:noreply,
-       assign(socket, pending_bets: new_bets, balance: socket.assigns.balance + bet.amount)}
+       assign(socket,
+         pending_bets: List.delete_at(socket.assigns.pending_bets, index),
+         balance: socket.assigns.balance + bet.amount
+       )}
+    else
+      _ -> {:noreply, socket}
     end
   end
 
   def handle_event("place_ctt_bet", _params, socket) do
     %{ctt_slots: [s1, s2, s3], ctt_amount: amount, balance: balance} = socket.assigns
 
-    if s1 != nil and s2 != nil and s3 != nil and amount > 0 and amount <= balance do
+    if editable_ctt?(socket) and s1 != nil and s2 != nil and s3 != nil and
+         Enum.sort([s1, s2, s3]) == Enum.sort(socket.assigns.round.deck) and
+         length(Enum.uniq_by([s1, s2, s3], & &1.rank)) > 1 and amount > 0 and amount <= balance do
       bet = %CallTheTurnBet{predicted_loser: s1.rank, predicted_winner: s2.rank, amount: amount}
       {:noreply, assign(socket, ctt_placed_bet: bet, balance: balance - amount)}
     else
@@ -144,9 +134,12 @@ defmodule FaroWeb.PlayLive do
   end
 
   def handle_event("set_ctt_amount", %{"amount" => val}, socket) do
-    case Integer.parse(val) do
-      {n, ""} when n >= 0 -> {:noreply, assign(socket, ctt_amount: n)}
-      _ -> {:noreply, socket}
+    case parse_integer(val) do
+      {:ok, n} when n >= 0 and n <= 9_223_372_036_854_775_807 ->
+        {:noreply, assign(socket, ctt_amount: n)}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -155,187 +148,112 @@ defmodule FaroWeb.PlayLive do
   end
 
   def handle_event("double_ctt_amount", _params, socket) do
-    {:noreply, assign(socket, ctt_amount: socket.assigns.ctt_amount * 2)}
+    {:noreply,
+     assign(socket, ctt_amount: min(socket.assigns.ctt_amount * 2, 9_223_372_036_854_775_807))}
   end
 
-  def handle_event("ctt_select_card", %{"rank" => rank_str, "suit" => suit_str}, socket) do
-    %{ctt_selected: selected} = socket.assigns
-    rank = String.to_integer(rank_str)
-    suit = String.to_existing_atom(suit_str)
-    card = %Card{rank: rank, suit: suit}
-    new_selected = if selected == card, do: nil, else: card
-    {:noreply, assign(socket, ctt_selected: new_selected)}
+  def handle_event("ctt_select_card", %{"rank" => rank, "suit" => suit}, socket) do
+    with true <- editable_ctt?(socket),
+         %Card{} = card <- available_card(socket, rank, suit) do
+      selected = if socket.assigns.ctt_selected == card, do: nil, else: card
+      {:noreply, assign(socket, ctt_selected: selected)}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("skip_ctt", _params, socket) do
-    if Enum.all?(socket.assigns.ctt_slots, &is_nil/1) do
-      refund =
-        case socket.assigns.ctt_placed_bet do
-          nil -> 0
-          bet -> bet.amount
-        end
-
-      handle_event(
-        "deal_turn",
-        %{},
-        assign(socket,
-          ctt_slots: [nil, nil, nil],
-          ctt_placed_bet: nil,
-          balance: socket.assigns.balance + refund
-        )
-      )
+    if socket.assigns.round.phase == :call_the_turn and
+         Enum.all?(socket.assigns.ctt_slots, &is_nil/1) and socket.assigns.ctt_placed_bet == nil do
+      handle_event("deal_turn", %{}, socket)
     else
       {:noreply, socket}
     end
   end
 
-  def handle_event("ctt_click_slot", %{"slot" => idx_str}, socket) do
-    %{ctt_selected: selected, ctt_slots: slots} = socket.assigns
-    idx = String.to_integer(idx_str)
-    current = Enum.at(slots, idx)
+  def handle_event("ctt_click_slot", %{"slot" => value}, socket) do
+    with true <- editable_ctt?(socket),
+         {:ok, index} when index in 0..2 <- parse_integer(value) do
+      slots = socket.assigns.ctt_slots
+      card = if Enum.at(slots, index), do: nil, else: socket.assigns.ctt_selected
 
-    cond do
-      current != nil ->
-        {:noreply, assign(socket, ctt_slots: List.replace_at(slots, idx, nil))}
-
-      selected != nil ->
-        {:noreply,
-         assign(socket, ctt_slots: List.replace_at(slots, idx, selected), ctt_selected: nil)}
-
-      true ->
-        {:noreply, socket}
+      {:noreply,
+       assign(socket, ctt_slots: List.replace_at(slots, index, card), ctt_selected: nil)}
+    else
+      _ -> {:noreply, socket}
     end
   end
 
-  def handle_event(
-        "ctt_drop_card",
-        %{"rank" => rank_str, "suit" => suit_str, "slot" => slot_str},
-        socket
-      ) do
-    if socket.assigns.ctt_placed_bet != nil do
-      {:noreply, socket}
-    else
-      rank = String.to_integer(rank_str)
-      suit = String.to_existing_atom(suit_str)
-      idx = String.to_integer(slot_str)
-      card = %Card{rank: rank, suit: suit}
-
-      new_slots =
+  def handle_event("ctt_drop_card", %{"rank" => rank, "suit" => suit, "slot" => value}, socket) do
+    with true <- editable_ctt?(socket),
+         {:ok, index} when index in 0..2 <- parse_integer(value),
+         %Card{} = card <-
+           Enum.find(
+             socket.assigns.round.deck,
+             &(to_string(&1.rank) == rank and to_string(&1.suit) == suit)
+           ) do
+      slots =
         socket.assigns.ctt_slots
-        |> Enum.map(fn c -> if c == card, do: nil, else: c end)
-        |> List.replace_at(idx, card)
+        |> Enum.map(fn existing -> if existing == card, do: nil, else: existing end)
+        |> List.replace_at(index, card)
 
-      {:noreply, assign(socket, ctt_slots: new_slots, ctt_selected: nil)}
+      {:noreply, assign(socket, ctt_slots: slots, ctt_selected: nil)}
+    else
+      _ -> {:noreply, socket}
     end
   end
+
+  def handle_event("deal_turn", _params, %{assigns: %{round: %{phase: :finished}}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("deal_turn", _params, socket) do
-    %{
-      round: round,
-      pending_bets: bets,
-      keep_bets?: keep_bets?,
-      shuffled_deck: shuffled_deck,
-      server_seed: server_seed,
-      commitment: commitment,
-      client_seed: client_seed,
-      nonce: nonce,
-      balance: balance,
-      ctt_slots: ctt_slots,
-      ctt_placed_bet: ctt_placed_bet
-    } = socket.assigns
+    assigns = socket.assigns
 
-    # For CTT phase: use the explicitly placed bet (balance already deducted at placement)
-    {bets_to_deal, pre_deal_balance} =
-      if round.phase == :call_the_turn do
-        case ctt_placed_bet do
-          nil -> {[], balance}
-          bet -> {[bet], balance}
-        end
-      else
-        {bets, balance}
-      end
+    bets =
+      if assigns.round.phase == :call_the_turn,
+        do: List.wrap(assigns.ctt_placed_bet),
+        else: assigns.pending_bets
 
-    {completed_turn, new_round} = Round.deal_turn(round, bets_to_deal)
+    params = %{
+      round_id: assigns.db_round_id,
+      wallet_id: assigns.wallet.id,
+      bets: bets,
+      server_seed: assigns.server_seed,
+      expected_index: length(assigns.round.turns) + 1
+    }
 
-    ordered_settlements =
-      Enum.sort_by(completed_turn.settlements, fn s ->
-        Enum.find_index(bets_to_deal, &(&1 == s.bet)) || 999
-      end)
+    case FaroGame.deal_game_turn(params) do
+      {:ok, result} ->
+        {restored_bets, balance} = repeat_bets(result, assigns.keep_bets?)
 
-    delta =
-      Enum.reduce(completed_turn.settlements, 0, fn s, acc ->
-        acc + s.bet.amount + s.net
-      end)
+        slots =
+          if result.round.phase == :call_the_turn, do: [nil, nil, nil], else: assigns.ctt_slots
 
-    post_deal_balance = pre_deal_balance + delta
+        {:noreply,
+         assign(socket,
+           round: result.round,
+           balance: balance,
+           wallet: result.wallet,
+           pending_bets: restored_bets,
+           last_turn: result.turn,
+           last_settlements: result.turn.settlements,
+           keep_bets?: assigns.keep_bets? and result.round.phase == :dealing,
+           audit: result.audit,
+           ctt_slots: slots,
+           ctt_selected: nil,
+           ctt_placed_bet: nil
+         )}
 
-    {restored_bets, final_balance, keep_bets?} =
-      if keep_bets? and new_round.phase == :dealing do
-        {bets, bal} =
-          Enum.reduce(completed_turn.bets, {[], post_deal_balance}, fn bet, {acc, bal} ->
-            if match?(%CallTheTurnBet{}, bet) or bet.amount > bal do
-              {acc, bal}
-            else
-              {acc ++ [bet], bal - bet.amount}
-            end
-          end)
+      {:error, _error} ->
+        Logger.warning("Game turn transaction failed")
 
-        {bets, bal, true}
-      else
-        {[], post_deal_balance, false}
-      end
-
-    audit =
-      if new_round.phase == :finished do
-        EngineAudit.from_round(
-          new_round,
-          commitment,
-          server_seed,
-          client_seed,
-          nonce,
-          shuffled_deck
-        )
-        |> EngineAudit.verify_full()
-      end
-
-    # Persistence — fire-and-forget; errors are logged but never crash the LiveView
-    db_round_id = socket.assigns[:db_round_id]
-    persist_turn(db_round_id, completed_turn)
-
-    if new_round.phase == :call_the_turn and round.phase == :dealing do
-      update_round_phase(db_round_id, :call_the_turn)
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "The turn could not be saved. Your bets and balance have not changed."
+         )}
     end
-
-    if new_round.phase == :finished do
-      persist_round_complete(db_round_id, server_seed, audit)
-    end
-
-    updated_wallet =
-      record_wallet_turn(socket.assigns[:wallet], completed_turn, final_balance,
-        round_id: db_round_id,
-        turn_index: completed_turn.index
-      )
-
-    # Reset CTT state when entering CTT phase; preserve slots after CTT deal (for result display)
-    {new_ctt_slots, new_ctt_selected} =
-      if new_round.phase == :call_the_turn,
-        do: {[nil, nil, nil], nil},
-        else: {ctt_slots, socket.assigns.ctt_selected}
-
-    {:noreply,
-     assign(socket,
-       round: new_round,
-       balance: final_balance,
-       wallet: updated_wallet,
-       pending_bets: restored_bets,
-       last_turn: completed_turn,
-       last_settlements: ordered_settlements,
-       keep_bets?: keep_bets?,
-       audit: audit,
-       ctt_slots: new_ctt_slots,
-       ctt_selected: new_ctt_selected,
-       ctt_placed_bet: nil
-     )}
   end
 
   def handle_event("toggle_keep_bets", _params, socket) do
@@ -343,12 +261,17 @@ defmodule FaroWeb.PlayLive do
   end
 
   def handle_event("new_round", _params, socket) do
-    {:noreply, start_round(socket, socket.assigns.nonce + 1, socket.assigns.balance)}
+    if socket.assigns.round.phase == :finished do
+      {:noreply, start_round(socket, socket.assigns.nonce + 1, socket.assigns.balance)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("regenerate_client_seed", _params, socket) do
     if socket.assigns.round.turns == [] do
-      {:noreply, start_round(socket, socket.assigns.nonce, socket.assigns.balance)}
+      {:noreply,
+       start_round(socket, socket.assigns.nonce, refunded_balance(socket), reuse_server?: true)}
     else
       {:noreply, socket}
     end
@@ -358,23 +281,34 @@ defmodule FaroWeb.PlayLive do
     {:noreply, assign(socket, client_seed_editing?: !socket.assigns.client_seed_editing?)}
   end
 
-  def handle_event("update_client_seed_draft", %{"seed" => seed}, socket) do
+  def handle_event("update_client_seed_draft", %{"seed" => seed}, socket)
+      when is_binary(seed) and byte_size(seed) <= 256 do
     {:noreply, assign(socket, client_seed_draft: seed)}
+  end
+
+  def handle_event("apply_client_seed_draft", %{"seed" => seed}, socket)
+      when is_binary(seed) and byte_size(seed) <= 256 do
+    handle_event("apply_client_seed_draft", %{}, assign(socket, client_seed_draft: seed))
   end
 
   def handle_event("apply_client_seed_draft", _params, socket) do
     if socket.assigns.round.turns == [] do
-      draft = String.trim(socket.assigns.client_seed_draft)
+      draft = socket.assigns.client_seed_draft
       seed = if draft == "", do: nil, else: draft
 
       {:noreply,
        socket
-       |> start_round(socket.assigns.nonce, socket.assigns.balance, client_seed: seed)
+       |> start_round(socket.assigns.nonce, refunded_balance(socket),
+         client_seed: seed,
+         reuse_server?: true
+       )
        |> assign(client_seed_editing?: false, client_seed_draft: "")}
     else
       {:noreply, assign(socket, client_seed_editing?: false)}
     end
   end
+
+  def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   # ---------------------------------------------------------------------------
   # Render
@@ -383,6 +317,9 @@ defmodule FaroWeb.PlayLive do
   def render(assigns) do
     assigns =
       assigns
+      |> assign(:seed_form, to_form(%{"seed" => assigns.client_seed_draft}))
+      |> assign(:bet_form, to_form(%{"amount" => assigns.bet_amount}))
+      |> assign(:ctt_form, to_form(%{"amount" => assigns.ctt_amount}))
       |> assign(:board_bets, board_bets(assigns.pending_bets))
       |> assign(:high_card_bet_pending, pending_high_card_bet(assigns.pending_bets))
       |> assign(:turns_dealt, length(assigns.round.turns))
@@ -423,7 +360,7 @@ defmodule FaroWeb.PlayLive do
       |> assign(:round_net, round_net(assigns.round))
 
     ~H"""
-    <div class="bg-green-950 min-h-full">
+    <div id="game-table" class="bg-green-950 min-h-full">
       <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-4">
         <%!-- Header --%>
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -498,6 +435,7 @@ defmodule FaroWeb.PlayLive do
               <%= if @round.turns == [] do %>
                 <div class="flex items-center gap-2 flex-shrink-0">
                   <button
+                    id="regenerate-client-seed"
                     phx-click="regenerate_client_seed"
                     class="text-xs text-stone-500 hover:text-amber-400 transition-colors border border-stone-700 rounded px-2 py-0.5"
                   >
@@ -522,25 +460,32 @@ defmodule FaroWeb.PlayLive do
             </div>
 
             <%= if @client_seed_editing? do %>
-              <div class="flex items-center gap-2 pt-1">
-                <input
+              <.form
+                for={@seed_form}
+                id="client-seed-form"
+                phx-change="update_client_seed_draft"
+                phx-submit="apply_client_seed_draft"
+                class="flex items-center gap-2 pt-1 [&_.fieldset]:mb-0"
+              >
+                <.input
+                  field={@seed_form[:seed]}
                   type="text"
+                  maxlength="256"
                   placeholder="Enter your own client seed"
-                  value={@client_seed_draft}
-                  phx-change="update_client_seed_draft"
                   phx-debounce="200"
-                  name="seed"
-                  class="flex-1 rounded border border-stone-600 bg-stone-800 px-2 py-1 font-mono text-xs text-stone-100 placeholder-stone-600 focus:border-amber-500 focus:outline-none"
+                  aria-label="Client seed"
+                  class="w-full rounded border border-stone-600 bg-stone-800 px-2 py-1 font-mono text-xs text-stone-100 placeholder-stone-600 focus:border-amber-500 focus:outline-none"
                 />
                 <button
-                  phx-click="apply_client_seed_draft"
+                  id="apply-client-seed-draft"
+                  type="submit"
                   class="rounded border border-amber-600 bg-amber-700 px-3 py-1 text-xs font-semibold text-stone-950 transition-colors hover:bg-amber-600"
                 >
                   Apply
                 </button>
-              </div>
+              </.form>
               <p class="text-[10px] text-stone-600">
-                Applying a new client seed restarts this round with a fresh shuffle proof.
+                Applying a client seed reshuffles this round using the existing server commitment and refunds pending bets.
               </p>
             <% end %>
           </div>
@@ -572,7 +517,7 @@ defmodule FaroWeb.PlayLive do
                 <div class="mb-2 text-xs uppercase tracking-widest text-stone-500">
                   Available Cards
                 </div>
-                <div class="flex flex-wrap gap-3">
+                <div id="ctt-card-pool" class="flex flex-wrap gap-3">
                   <%= for card <- @ctt_available do %>
                     <div
                       class={[
@@ -650,16 +595,23 @@ defmodule FaroWeb.PlayLive do
                 >
                   ½
                 </button>
-                <input
-                  type="number"
-                  min="0"
-                  value={@ctt_amount}
+                <.form
+                  for={@ctt_form}
+                  id="ctt-amount-form"
                   phx-change="set_ctt_amount"
-                  phx-debounce="blur"
-                  name="amount"
-                  disabled={@ctt_placed_bet != nil}
-                  class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none disabled:opacity-40"
-                />
+                  phx-submit="set_ctt_amount"
+                  class="[&_.fieldset]:mb-0"
+                >
+                  <.input
+                    type="number"
+                    min="0"
+                    field={@ctt_form[:amount]}
+                    phx-debounce="blur"
+                    aria-label="Bet amount"
+                    disabled={@ctt_placed_bet != nil}
+                    class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none disabled:opacity-40"
+                  />
+                </.form>
                 <button
                   phx-click="double_ctt_amount"
                   disabled={@ctt_placed_bet != nil}
@@ -712,15 +664,22 @@ defmodule FaroWeb.PlayLive do
                     >
                       ½
                     </button>
-                    <input
-                      type="number"
-                      min="1"
-                      value={@bet_amount}
+                    <.form
+                      for={@bet_form}
+                      id="bet-amount-form"
                       phx-change="set_amount"
-                      phx-debounce="300"
-                      name="amount"
-                      class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-                    />
+                      phx-submit="set_amount"
+                      class="[&_.fieldset]:mb-0"
+                    >
+                      <.input
+                        type="number"
+                        min="1"
+                        field={@bet_form[:amount]}
+                        phx-debounce="300"
+                        aria-label="Bet amount"
+                        class="w-24 rounded border border-stone-600 bg-stone-900 px-2 py-1 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
+                      />
+                    </.form>
                     <button
                       phx-click="double_amount"
                       class="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs font-semibold text-stone-300 transition-colors hover:border-stone-500 hover:text-stone-100"
@@ -733,6 +692,7 @@ defmodule FaroWeb.PlayLive do
                 <div></div>
                 <div class="flex flex-wrap items-center gap-3">
                   <button
+                    id="toggle-keep-bets"
                     phx-click="toggle_keep_bets"
                     disabled={@repeat_disabled}
                     class={[
@@ -752,6 +712,7 @@ defmodule FaroWeb.PlayLive do
                     {if @keep_bets?, do: "Repeating Bets ✓", else: "Repeat Bets"}
                   </button>
                   <button
+                    id="deal-turn"
                     phx-click="deal_turn"
                     disabled={not @ctt_deal_enabled}
                     class={[
@@ -788,6 +749,7 @@ defmodule FaroWeb.PlayLive do
             <%= if @round.phase == :call_the_turn do %>
               <div class="flex flex-wrap items-center justify-end gap-3">
                 <button
+                  id="skip-ctt"
                   phx-click="skip_ctt"
                   disabled={not @ctt_skip_enabled}
                   class={[
@@ -803,6 +765,7 @@ defmodule FaroWeb.PlayLive do
                   Skip Final Bet
                 </button>
                 <button
+                  id="place-ctt-bet"
                   phx-click="place_ctt_bet"
                   disabled={not @ctt_place_enabled}
                   class={[
@@ -817,6 +780,7 @@ defmodule FaroWeb.PlayLive do
                   Place Final Bet
                 </button>
                 <button
+                  id="reveal-final-cards"
                   phx-click="deal_turn"
                   disabled={not @ctt_deal_enabled}
                   class={[
@@ -869,6 +833,7 @@ defmodule FaroWeb.PlayLive do
                   </.link>
                 <% end %>
                 <button
+                  id="new-round"
                   phx-click="new_round"
                   class="rounded border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-stone-950 transition-colors hover:bg-amber-500"
                 >
@@ -1158,7 +1123,11 @@ defmodule FaroWeb.PlayLive do
   # ---------------------------------------------------------------------------
 
   defp start_round(socket, nonce, balance, opts \\ []) do
-    server_seed = Fairness.generate_server_seed()
+    server_seed =
+      if Keyword.get(opts, :reuse_server?, false),
+        do: socket.assigns.server_seed,
+        else: :crypto.strong_rand_bytes(32)
+
     commitment = Fairness.commit_server_seed(server_seed)
 
     client_seed =
@@ -1170,137 +1139,123 @@ defmodule FaroWeb.PlayLive do
     shuffled_deck = Shuffle.shuffle(Deck.new(), shuffle_seed)
     round = Round.new(shuffled_deck)
 
-    db_round_id = persist_round_start(socket, shuffled_deck, commitment, client_seed, nonce)
+    persistence = persist_round_start(socket, shuffled_deck, commitment, client_seed, nonce, opts)
 
-    assign(socket,
-      balance: balance,
-      round: round,
-      server_seed: server_seed,
-      commitment: commitment,
-      client_seed: client_seed,
-      nonce: nonce,
-      shuffled_deck: shuffled_deck,
-      db_round_id: db_round_id,
-      pending_bets: [],
-      last_turn: nil,
-      last_settlements: [],
-      bet_amount: @default_bet,
-      copper?: false,
-      keep_bets?: Map.get(socket.assigns, :keep_bets?, false),
-      ctt_slots: [nil, nil, nil],
-      ctt_selected: nil,
-      ctt_amount: @default_bet,
-      ctt_placed_bet: nil,
-      audit: nil,
-      client_seed_editing?: false,
-      client_seed_draft: ""
-    )
-  end
+    socket =
+      assign(socket,
+        balance: balance,
+        round: round,
+        server_seed: server_seed,
+        commitment: commitment,
+        client_seed: client_seed,
+        nonce: nonce,
+        shuffled_deck: shuffled_deck,
+        db_round_id: nil,
+        pending_bets: [],
+        last_turn: nil,
+        last_settlements: [],
+        bet_amount: @default_bet,
+        copper?: false,
+        keep_bets?: Map.get(socket.assigns, :keep_bets?, false),
+        ctt_slots: [nil, nil, nil],
+        ctt_selected: nil,
+        ctt_amount: @default_bet,
+        ctt_placed_bet: nil,
+        audit: nil,
+        client_seed_editing?: false,
+        client_seed_draft: ""
+      )
 
-  defp record_wallet_turn(nil, _turn, _balance, _opts), do: nil
+    case persistence do
+      {:ok, state} ->
+        assign(socket, state)
 
-  defp record_wallet_turn(wallet, completed_turn, balance, opts) do
-    case Wallet.record_turn(wallet, completed_turn, balance, opts) do
-      {:ok, updated} ->
-        updated
+      {:error, _} ->
+        Logger.warning("Game startup transaction failed")
 
-      {:error, e} ->
-        Logger.warning("Wallet recording failed: #{inspect(e)}")
-        wallet
+        socket
+        |> put_flash(:error, "Unable to start a saved game. Please try again.")
+        |> push_navigate(to: ~p"/")
     end
   end
 
-  defp persist_round_start(socket, shuffled_deck, commitment, client_seed, nonce) do
+  defp persist_round_start(socket, deck, commitment, client_seed, nonce, opts) do
     attrs = %{
-      game_session_id: socket.assigns[:session_id],
       nonce: nonce,
       client_seed: client_seed,
       server_seed_hash: commitment,
       algorithm_version: Fairness.algorithm_version(),
-      soda_rank: hd(shuffled_deck).rank,
-      soda_suit: to_string(hd(shuffled_deck).suit),
+      soda_rank: hd(deck).rank,
+      soda_suit: to_string(hd(deck).suit),
       status: :dealing,
-      shuffled_deck: Serializer.encode_deck(shuffled_deck)
+      shuffled_deck: Serializer.encode_deck(deck)
     }
 
-    case FaroGame.create_round(attrs) do
-      {:ok, db_round} ->
-        db_round.id
+    cond do
+      not connected?(socket) ->
+        {:ok, %{db_round_id: nil}}
 
-      {:error, e} ->
-        Logger.warning("Round persistence failed: #{inspect(e)}")
-        nil
+      socket.assigns.wallet == nil ->
+        with {:ok, game} <- FaroGame.start_game(attrs) do
+          {:ok, %{session_id: game.session.id, wallet: game.wallet, db_round_id: game.round.id}}
+        end
+
+      Keyword.get(opts, :reuse_server?, false) ->
+        with {:ok, round} <- FaroGame.get_round(socket.assigns.db_round_id),
+             {:ok, round} <- FaroGame.update_round(round, attrs) do
+          {:ok, %{db_round_id: round.id}}
+        end
+
+      true ->
+        with {:ok, round} <-
+               FaroGame.create_round(Map.put(attrs, :game_session_id, socket.assigns.session_id)) do
+          {:ok, %{db_round_id: round.id}}
+        end
     end
   end
 
-  defp persist_turn(nil, _turn), do: :ok
+  defp repeat_bets(%{round: %{phase: :dealing}, turn: turn, wallet: wallet}, true) do
+    {bets, balance} =
+      Enum.reduce(turn.bets, {[], wallet.balance_sats}, fn bet, {bets, balance} ->
+        if bet.amount <= balance, do: {[bet | bets], balance - bet.amount}, else: {bets, balance}
+      end)
 
-  defp persist_turn(db_round_id, turn) do
-    attrs = %{
-      round_id: db_round_id,
-      index: turn.index,
-      loser_rank: turn.loser.rank,
-      loser_suit: to_string(turn.loser.suit),
-      winner_rank: turn.winner.rank,
-      winner_suit: to_string(turn.winner.suit),
-      split: turn.split?,
-      bets: Enum.map(turn.bets, &Serializer.encode_bet/1),
-      settlements: Enum.map(turn.settlements, &Serializer.encode_settlement/1)
-    }
+    {Enum.reverse(bets), balance}
+  end
 
-    case FaroGame.create_turn(attrs) do
-      {:ok, _} -> :ok
-      {:error, e} -> Logger.warning("Turn persistence failed: #{inspect(e)}")
+  defp repeat_bets(result, _keep?), do: {[], result.wallet.balance_sats}
+
+  defp refunded_balance(socket) do
+    socket.assigns.balance + Enum.sum(Enum.map(socket.assigns.pending_bets, & &1.amount))
+  end
+
+  defp editable_ctt?(socket) do
+    socket.assigns.round.phase == :call_the_turn and socket.assigns.ctt_placed_bet == nil
+  end
+
+  defp available_card(socket, rank, suit) do
+    Enum.find(
+      ctt_available_cards(socket.assigns.round, socket.assigns.ctt_slots),
+      &(to_string(&1.rank) == rank and to_string(&1.suit) == suit)
+    )
+  end
+
+  defp parse_integer(value) when is_binary(value) and byte_size(value) <= 32 do
+    case Integer.parse(value) do
+      {number, ""} -> {:ok, number}
+      _ -> :error
     end
   end
 
-  defp update_round_phase(nil, _phase), do: :ok
-
-  defp update_round_phase(db_round_id, phase) do
-    with {:ok, db_round} <- FaroGame.get_round(db_round_id),
-         {:ok, _} <- FaroGame.update_round(db_round, %{status: phase}) do
-      :ok
-    else
-      {:error, e} -> Logger.warning("Round phase update failed: #{inspect(e)}")
-    end
-  end
-
-  defp persist_round_complete(nil, _server_seed, _audit), do: :ok
-
-  defp persist_round_complete(db_round_id, server_seed, audit) do
-    with {:ok, db_round} <- FaroGame.get_round(db_round_id),
-         {:ok, _} <-
-           FaroGame.update_round(db_round, %{status: :finished, server_seed: server_seed}) do
-      :ok
-    else
-      {:error, e} -> Logger.warning("Round finalization failed: #{inspect(e)}")
-    end
-
-    if audit do
-      attrs = %{
-        round_id: db_round_id,
-        algorithm_version: audit.algorithm_version,
-        server_commitment: audit.server_commitment,
-        server_seed: audit.server_seed,
-        client_seed: audit.client_seed,
-        nonce: audit.nonce,
-        verified: audit.verified?,
-        shuffled_deck: Serializer.encode_deck(audit.shuffled_deck),
-        soda: Serializer.encode_card(audit.soda),
-        turns: Enum.map(audit.turns, &Serializer.encode_audit_turn/1)
-      }
-
-      case Audit.create_audit_record(attrs) do
-        {:ok, _} -> :ok
-        {:error, e} -> Logger.warning("Audit record persistence failed: #{inspect(e)}")
-      end
-    end
-  end
+  defp parse_integer(_), do: :error
 
   defp ctt_available_cards(round, slots) do
     if round.phase == :call_the_turn do
       placed = MapSet.new(Enum.reject(slots, &is_nil/1))
-      Enum.reject(round.deck, &MapSet.member?(placed, &1))
+
+      round.deck
+      |> Enum.reject(&MapSet.member?(placed, &1))
+      |> Enum.sort_by(&{&1.rank, &1.suit})
     else
       []
     end
@@ -1313,7 +1268,8 @@ defmodule FaroWeb.PlayLive do
   defp ctt_deal_enabled?(_, _slots, _placed_bet), do: true
 
   defp ctt_place_enabled?(nil, slots, amount, balance) do
-    Enum.all?(slots, &(&1 != nil)) and amount > 0 and amount <= balance
+    Enum.all?(slots, &(&1 != nil)) and length(Enum.uniq_by(slots, & &1.rank)) > 1 and amount > 0 and
+      amount <= balance
   end
 
   defp ctt_place_enabled?(_placed_bet, _slots, _amount, _balance), do: false

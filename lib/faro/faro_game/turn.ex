@@ -24,7 +24,7 @@ defmodule Faro.FaroGame.Turn do
   end
 
   actions do
-    defaults [:read, :destroy, create: :*, update: :*]
+    defaults [:read, create: :*]
 
     read :by_round do
       argument :round_id, :uuid, allow_nil?: false
@@ -38,11 +38,13 @@ defmodule Faro.FaroGame.Turn do
 
     # Turn number within the round (1–25).
     attribute :index, :integer do
+      constraints min: 1, max: 25
       allow_nil? false
       public? true
     end
 
     attribute :loser_rank, :integer do
+      constraints min: 1, max: 13
       allow_nil? false
       public? true
     end
@@ -53,6 +55,7 @@ defmodule Faro.FaroGame.Turn do
     end
 
     attribute :winner_rank, :integer do
+      constraints min: 1, max: 13
       allow_nil? false
       public? true
     end
@@ -88,5 +91,9 @@ defmodule Faro.FaroGame.Turn do
       allow_nil? false
       public? true
     end
+  end
+
+  identities do
+    identity :unique_round_turn, [:round_id, :index]
   end
 end

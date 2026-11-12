@@ -63,7 +63,7 @@ One round of Faro. Holds all provably-fair seed parameters and the full shuffled
 | `inserted_at` | `utc_datetime_usec` | NOT NULL | `now()` | |
 | `updated_at` | `utc_datetime_usec` | NOT NULL | `now()` | |
 
-**References:** `game_sessions.id` (ON DELETE CASCADE)  
+**References:** `game_sessions.id` (ON DELETE CASCADE)
 **Referenced by:** `game_turns.round_id` (CASCADE DELETE), `audit_records.round_id` (CASCADE DELETE), `ledger_entries.round_id` (SET NULL)
 
 ---
@@ -88,6 +88,7 @@ One dealt turn within a round. Turns are numbered 1–25. Bets and settlements a
 | `updated_at` | `utc_datetime_usec` | NOT NULL | `now()` | |
 
 **References:** `game_rounds.id` (ON DELETE CASCADE)
+**Unique index:** `game_turns_unique_round_turn_index` on `(round_id, index)`
 
 ---
 
@@ -103,8 +104,9 @@ FTC (fake token coin) wallet for a game session. `balance_sats` is a cached sum 
 | `inserted_at` | `utc_datetime_usec` | NOT NULL | `now()` | |
 | `updated_at` | `utc_datetime_usec` | NOT NULL | `now()` | |
 
-**References:** `game_sessions.id` (ON DELETE CASCADE)  
+**References:** `game_sessions.id` (ON DELETE CASCADE)
 **Referenced by:** `ledger_entries.wallet_id` (CASCADE DELETE)
+**Unique index:** `wallets_unique_session_index` on `(game_session_id)`, permitting unassociated wallets with a null session.
 
 ---
 
@@ -148,7 +150,7 @@ One record per completed round. Contains everything a third party needs to indep
 | `inserted_at` | `utc_datetime_usec` | NOT NULL | `now()` | |
 | `updated_at` | `utc_datetime_usec` | NOT NULL | `now()` | |
 
-**References:** `game_rounds.id` (ON DELETE CASCADE)  
+**References:** `game_rounds.id` (ON DELETE CASCADE)
 **Unique index:** `audit_records_unique_round_index` on `(round_id)`
 
 ---

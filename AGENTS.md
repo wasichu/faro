@@ -2,12 +2,29 @@ This is a web application written using the Phoenix web framework.
 
 ## Project guidelines
 
+- Use the runtime and tools pinned in `mise.toml` (`mise exec -- ...` if mise is not activated). `just --list` lists the shared local/CI commands.
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
 
+### Faro correctness and architecture
+
+These project-specific conventions take precedence over generic dependency guidance below.
+
+- Keep `Faro.GameEngine` deterministic and independent of Phoenix, Ash, databases, clocks, and random seed generation. Callers supply seeds; never change the versioned shuffle algorithm without a new identifier and compatibility tests.
+- Treat the database as authoritative. Coordinate a dealt turn, wallet/ledger entries, round status, session activity, and final audit in one transaction through domain actions. Advance LiveView state only after successful persistence; never log an error and continue with fictional success.
+- Store settled wallet balance separately from pending wagers in the UI. Cached wallet balance must equal the signed ledger sum. Derive balance from validated settlements, reject overdrafts and stale writes, and keep ledger/audit records append-only (retention cascades are deliberate exceptions).
+- Publish and preserve the server commitment before accepting client seed changes. Never regenerate the server seed when editing the client seed. Reveal it only after completion.
+- Verify all 25 sequential turns, exact cards, split flags, bets, and payouts. Reject incomplete transcripts, unsupported algorithm versions, malformed input, and nonce overflow. Keep historical shuffle outputs reproducible.
+- Treat every LiveView event as untrusted input. Validate types, numeric bounds, card membership, current phase, and duplicate actions on the server; disabled buttons provide no validation.
+- Do not write game records during disconnected LiveView mount. No authentication strategies are implemented; do not invent `current_scope` requirements for anonymous routes.
+- Bounded game state (13 ranks, 25 turns) may use immutable lists. Use LiveView streams for unbounded or incrementally loaded collections.
+- Add deterministic regression tests for confirmed defects. Prefer known decks over searching random games for a desired outcome. Exercise LiveView events, failed transaction rollback, ledger reconciliation, replayed actions, and tampered audits.
+- Use the dedicated PostgreSQL container. Set `FARO_DB_PORT` consistently when the default port belongs to another project. Never reset or reuse an unrelated application's database.
+- `mise exec -- just ci` checks formatting, lockfile, `mix precommit`, assets, and Playwright desktop/mobile journeys; install Chromium once with `just browser-setup`. Browser checks use their own `faro_browser_test` database and server; `mise exec -- just release` verifies production compilation. Check Ash-generated migrations/snapshots when resource schema changes.
+
 ### Phoenix v1.8 guidelines
 
-- **Always** begin your LiveView templates with `<Layouts.app flash={@flash} ...>` which wraps all inner content
+- The router currently supplies `{FaroWeb.Layouts, :app}` through `live_session`. Keep exactly one application layout per page. If switching to explicit `<Layouts.app flash={@flash}>` wrappers, remove the router-provided layout in the same change.
 - The `MyAppWeb.Layouts` module is aliased in the `my_app_web.ex` file, so you can use it without needing to alias it again
 - Anytime you run into errors with no `current_scope` assign:
   - You failed to follow the Authenticated Routes guidelines, or you failed to pass `current_scope` to `<Layouts.app>`

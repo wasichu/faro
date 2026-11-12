@@ -10,6 +10,7 @@ import Config
 config :ash_oban, pro?: false
 
 config :ash,
+  default_string_length_count: :codepoints,
   allow_forbidden_field_for_relationships_by_default?: true,
   include_embedded_source_by_default?: false,
   show_keysets_for_all_actions?: false,
@@ -80,7 +81,7 @@ config :faro, FaroWeb.Endpoint,
 
 # Configure esbuild (the version is required)
 config :esbuild,
-  version: "0.25.4",
+  version: "0.28.2",
   faro: [
     args:
       ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
@@ -90,7 +91,7 @@ config :esbuild,
 
 # Configure tailwind (the version is required)
 config :tailwind,
-  version: "4.1.7",
+  version: "4.3.5",
   faro: [
     args: ~w(
       --input=assets/css/app.css

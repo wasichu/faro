@@ -30,6 +30,33 @@ defmodule Faro.FaroGame.GameSession do
   actions do
     defaults [:read, :destroy, create: :*, update: :*]
 
+    update :record_activity do
+      accept []
+      change set_attribute(:updated_at, &DateTime.utc_now/0)
+    end
+
+    action :deal_game_turn, :map do
+      transaction? true
+
+      touches_resources [
+        Faro.FaroGame.Round,
+        Faro.FaroGame.Turn,
+        Faro.FaroGame.Wallet,
+        Faro.FaroGame.LedgerEntry,
+        Faro.Audit.Record
+      ]
+
+      argument :params, :term, allow_nil?: false
+      run Faro.FaroGame.DealTurn
+    end
+
+    action :start_game, :map do
+      transaction? true
+      touches_resources [Faro.FaroGame.Round, Faro.FaroGame.Wallet, Faro.FaroGame.LedgerEntry]
+      argument :round_attrs, :map, allow_nil?: false
+      run Faro.FaroGame.StartGame
+    end
+
     action :cleanup_abandoned_sessions do
       run Faro.FaroGame.GameSessionCleanup
     end

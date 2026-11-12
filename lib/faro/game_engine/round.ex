@@ -23,7 +23,7 @@ defmodule Faro.GameEngine.Round do
   and tracking to `Casekeeper`. No I/O, no process state.
   """
 
-  alias Faro.GameEngine.{Card, Casekeeper, CallTheTurnBet, HighCardBet, Settlement, Turn}
+  alias Faro.GameEngine.{Card, Casekeeper, CallTheTurnBet, Deck, HighCardBet, Settlement, Turn}
 
   @type phase :: :dealing | :call_the_turn | :finished
 
@@ -43,7 +43,11 @@ defmodule Faro.GameEngine.Round do
   Burns the first card as the soda (no betting on the soda).
   """
   @spec new([Card.t()]) :: t()
-  def new([soda | rest]) do
+  def new([soda | rest] = deck) when length(deck) == 52 do
+    unless MapSet.new(deck) == MapSet.new(Deck.new()) do
+      raise ArgumentError, "round requires exactly one standard 52-card deck"
+    end
+
     casekeeper = Casekeeper.new() |> Casekeeper.record_burned(soda)
 
     %__MODULE__{
@@ -54,6 +58,8 @@ defmodule Faro.GameEngine.Round do
       phase: detect_phase(length(rest))
     }
   end
+
+  def new(_deck), do: raise(ArgumentError, "round requires exactly one standard 52-card deck")
 
   @doc """
   Deals the next turn, settling all provided bets.
@@ -67,11 +73,19 @@ defmodule Faro.GameEngine.Round do
   Raises if the round is already `:finished`.
   """
   @spec deal_turn(t(), list()) :: {Turn.t(), t()}
+  def deal_turn(%__MODULE__{phase: :finished}, _bets) do
+    raise ArgumentError, "cannot deal from a finished round"
+  end
+
   def deal_turn(
         %__MODULE__{deck: [loser, winner | rest], turns: turns, casekeeper: ck, phase: phase} =
           round,
         bets
       ) do
+    unless is_list(bets) and Enum.all?(bets, &Faro.GameEngine.Wager.valid?/1) do
+      raise ArgumentError, "invalid wager"
+    end
+
     index = length(turns) + 1
     turn = Turn.new(index, loser, winner)
 
@@ -90,10 +104,6 @@ defmodule Faro.GameEngine.Round do
     }
 
     {completed_turn, new_round}
-  end
-
-  def deal_turn(%__MODULE__{phase: :finished}, _bets) do
-    raise ArgumentError, "cannot deal from a finished round"
   end
 
   @doc "Returns the current phase of the round."

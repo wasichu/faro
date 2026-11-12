@@ -20,8 +20,20 @@ defmodule Faro.FaroGame.Serializer do
     do: %{"rank" => rank, "suit" => to_string(suit)}
 
   @spec decode_card(map()) :: Card.t()
-  def decode_card(%{"rank" => rank, "suit" => suit}),
-    do: %Card{rank: rank, suit: String.to_existing_atom(suit)}
+  def decode_card(%{"rank" => rank, "suit" => suit}) when rank in 1..13 do
+    suit =
+      case suit do
+        "spades" -> :spades
+        "hearts" -> :hearts
+        "diamonds" -> :diamonds
+        "clubs" -> :clubs
+        _ -> raise ArgumentError, "invalid card suit"
+      end
+
+    %Card{rank: rank, suit: suit}
+  end
+
+  def decode_card(_), do: raise(ArgumentError, "invalid card")
 
   # ---------------------------------------------------------------------------
   # Deck
@@ -81,7 +93,14 @@ defmodule Faro.FaroGame.Serializer do
 
   @spec decode_settlement(map()) :: map()
   def decode_settlement(%{"bet" => bet_map, "net" => net, "outcome" => outcome}),
-    do: %{bet: decode_bet(bet_map), net: net, outcome: String.to_existing_atom(outcome)}
+    do: %{bet: decode_bet(bet_map), net: net, outcome: decode_outcome(outcome)}
+
+  defp decode_outcome("win"), do: :win
+  defp decode_outcome("loss"), do: :loss
+  defp decode_outcome("push"), do: :push
+  defp decode_outcome("split"), do: :split
+  defp decode_outcome("void"), do: :void
+  defp decode_outcome(_), do: raise(ArgumentError, "invalid settlement outcome")
 
   # ---------------------------------------------------------------------------
   # Audit turn records (from GameEngine.Audit.turn_record)
@@ -93,6 +112,7 @@ defmodule Faro.FaroGame.Serializer do
         loser_rank: lr,
         winner_rank: wr,
         split?: split?,
+        bets: bets,
         settlements: settlements
       }),
       do: %{
@@ -100,6 +120,7 @@ defmodule Faro.FaroGame.Serializer do
         "loser_rank" => lr,
         "winner_rank" => wr,
         "split" => split?,
+        "bets" => Enum.map(bets, &encode_bet/1),
         "settlements" => Enum.map(settlements, &encode_settlement/1)
       }
 
@@ -109,6 +130,7 @@ defmodule Faro.FaroGame.Serializer do
         "loser_rank" => lr,
         "winner_rank" => wr,
         "split" => split?,
+        "bets" => bets,
         "settlements" => settlements
       }),
       do: %{
@@ -116,6 +138,7 @@ defmodule Faro.FaroGame.Serializer do
         loser_rank: lr,
         winner_rank: wr,
         split?: split?,
+        bets: Enum.map(bets, &decode_bet/1),
         settlements: Enum.map(settlements, &decode_settlement/1)
       }
 end

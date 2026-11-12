@@ -10,8 +10,8 @@ Faro is a historically accurate Faro card-game simulator built with Elixir, Phoe
 |---|---|
 | `FaroWeb` | Phoenix LiveView controllers, router, HTML components |
 | `Faro.GameEngine` | Pure Elixir game logic — no I/O, no process state |
-| `Faro.Accounts` | User identity, registration, authentication (AshAuthentication) |
-| `Faro.Wallets` | Append-only token ledger (FTC v1, Bitcoin regtest v2) |
+| `Faro.Accounts` | Placeholder domain for future authentication; play is anonymous |
+| `Faro.Wallets` | Placeholder domain; current FTC wallet/ledger resources live in `Faro.FaroGame` |
 | `Faro.FaroGame` | Game session persistence and lifecycle coordination |
 | `Faro.Bitcoin` | Bitcoin Core regtest adapter (future phase) |
 | `Faro.Audit` | Provably-fair transcripts and verification records |
@@ -51,7 +51,11 @@ This means the entire game engine is trivially testable, reproducible, and audit
 
 ## Ledger Philosophy
 
-All token movements are append-only. There is no mutable balance field on any account. A player's balance at any point in time is the sum of all ledger entries for their account up to that moment.
+Token movements are append-only through the application action API. `Wallet.balance_sats`
+is a mutable cache of the signed ledger sum. It is updated only with its debit/credit
+entries in the same transaction. The LiveView's spendable balance subtracts pending
+wagers from this settled balance; pending reservations are not persisted as settled losses.
+Retention deliberately removes old anonymous sessions and their ledger history via cascades.
 
 This design guarantees:
 
@@ -69,15 +73,26 @@ Before each round, the server:
 1. Generates a random `server_seed`.
 2. Commits to it: `commitment = SHA-256(server_seed)` — published to the player.
 
-The player provides a `client_nonce` before cards are dealt.
+The player may supply a `client_seed`. Editing it before the first deal preserves
+the original server seed and commitment. The shuffle seed is
+`HMAC-SHA256(server_seed, client_seed <> <<nonce::big-64>>)`, not a concatenation
+of the two seeds. The fixed `faro-shuffle-v1` shuffle then uses that derived seed.
+The nonce is an unsigned 64-bit integer; overflow is rejected.
 
-The combined seed `server_seed <> client_nonce` is fed to `Shuffle`. After the round, the server reveals `server_seed`. Any observer can:
+After completion, verification checks the commitment, algorithm version, exact
+shuffled deck and soda, all 25 sequential turns, split flags, wagers, and payouts.
+The audit page additionally checks the persisted suits. Full verification requires
+a separate bets field; reconstructing wagers from payouts could hide omitted
+settlements. The original `game_turns.bets` field supplies that independent wager
+source for historical rounds on the persisted audit page. Older standalone
+transcripts without it cannot pass full verification.
 
-1. Verify `SHA-256(server_seed) == commitment`.
-2. Reproduce the shuffle from the combined seed.
-3. Step through every turn and confirm the audit transcript.
-
-No trust in the server is required beyond the pre-round commitment.
+To establish the commitment protocol independently, a player must record the
+commitment before submitting their own client seed. Reproducing a completed
+shuffle proves consistency with that commitment; it does not prove the server
+never abandoned a round or authenticate which wagers the player originally submitted.
+A browser refresh starts a new anonymous session; unfinished rounds cannot be
+resumed because their private server seeds are held only in the LiveView process.
 
 ---
 
@@ -85,15 +100,15 @@ No trust in the server is required beyond the pre-round commitment.
 
 In version 1, all wagering uses Fake Token Currency (FTC) — integer token units with no real-world value. There is no real money handling, no payment processing, and no regulatory exposure.
 
-The `Faro.Wallets` domain uses an internal `WalletAdapter` behaviour. The FTC adapter is the only implementation in v1. Players are provisioned with a starting FTC balance on registration.
+The `FaroGame.start_game` action provisions a session, a wallet, its 1,000,000-token grant, and the first round atomically. `Faro.Wallets` is a placeholder; no `WalletAdapter` behaviour or registration flow is implemented.
 
 ---
 
 ## Future: Bitcoin Regtest Integration
 
-In a future phase, a second `WalletAdapter` implementation backed by `Faro.Bitcoin` will allow wagering with Bitcoin Core running in regtest mode. Regtest provides full Bitcoin transaction semantics — including real mempool, block confirmation, and fee mechanics — without touching mainnet funds.
+In a future phase, a future wallet adapter backed by `Faro.Bitcoin` will allow wagering with Bitcoin Core running in regtest mode. Regtest provides full Bitcoin transaction semantics — including real mempool, block confirmation, and fee mechanics — without touching mainnet funds.
 
-The game engine, settlement logic, and audit trail are identical in both modes. Only the wallet adapter changes. This is the core benefit of the adapter boundary introduced in v1.
+The game engine, settlement logic, and audit trail are identical in both modes. A wallet adapter boundary would need to be implemented before that integration.
 
 Key considerations for Bitcoin mode:
 
@@ -104,15 +119,33 @@ Key considerations for Bitcoin mode:
 
 ---
 
+## Gameplay transactions
+
+`FaroGame.deal_game_turn` is the authoritative action. It locks the persisted
+round and wallet, checks session ownership and the expected turn number, replays
+the stored deck/bets, validates funding and phase, and computes settlements.
+The turn, ledger entries, settled balance, round status, final seed reveal/audit,
+and session activity timestamp commit together. Dedicated activity/advance actions
+set `updated_at` explicitly, including when the status itself is unchanged. Failure rolls everything back;
+the LiveView retains its previous state and pending reservations.
+
+A unique database index enforces `(round_id, index)` for turns; another enforces
+one wallet per non-null session. Ledger entries, dealt turns, and completed audit
+records expose no general update/destroy actions. Cleanup uses explicit parent
+retention actions and database cascades.
+
+The final-card pool is sorted independently of the hidden deal order. Engine
+settlement uses integer amounts: a doublet takes `div(amount, 2)`, rounding the
+house's half down for an odd stake. The v1 shuffle's negligible modulo bias is
+preserved for compatibility; its output is covered by an independent golden vector.
+
 ## Dependency Rules
 
 ```
-FaroWeb → FaroGame, Accounts, Wallets, Audit
-FaroGame → GameEngine, Wallets, Audit
-Wallets → (WalletAdapter behaviour) → FTC adapter | Bitcoin adapter
-Bitcoin → (external: Bitcoin Core RPC)
-GameEngine → (nothing — pure functions only)
-Audit → (nothing — pure data assembly only)
+FaroWeb → FaroGame, Audit.Verification
+FaroGame → GameEngine, Audit records
+Audit.Verification → GameEngine, FaroGame.Serializer
+GameEngine → Elixir/OTP only (deterministic; callers supply entropy)
 ```
 
-Arrows represent "may call". No reverse dependencies are permitted.
+The Accounts, Wallets, and Bitcoin domains are placeholders, not completed adapters.

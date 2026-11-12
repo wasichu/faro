@@ -16,7 +16,7 @@ defmodule Faro.FaroGame.RoundTest do
   # ---------------------------------------------------------------------------
 
   defp run_full_engine_round do
-    server_seed = Fairness.generate_server_seed()
+    server_seed = :binary.copy(<<42>>, 32)
     commitment = Fairness.commit_server_seed(server_seed)
     client_seed = "test-client-seed"
     nonce = 1

@@ -17,12 +17,16 @@ defmodule Faro.FaroGame do
       define :create_session, action: :create
       define :get_session, action: :read, get_by: :id
       define :update_session, action: :update
+      define :record_session_activity, action: :record_activity
+      define :deal_game_turn, action: :deal_game_turn, args: [:params]
+      define :start_game, action: :start_game, args: [:round_attrs]
     end
 
     resource Faro.FaroGame.Round do
       define :create_round, action: :create
       define :get_round, action: :read, get_by: :id
       define :update_round, action: :update
+      define :advance_round_turn, action: :advance_turn
     end
 
     resource Faro.FaroGame.Turn do
@@ -33,7 +37,6 @@ defmodule Faro.FaroGame do
     resource Faro.FaroGame.Wallet do
       define :create_wallet_with_topup, action: :create_with_topup
       define :get_wallet, action: :read, get_by: :id
-      define :update_wallet, action: :update
       define :record_wallet_turn, action: :record_turn
     end
 

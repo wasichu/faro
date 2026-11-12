@@ -73,3 +73,15 @@ The following DB-level `ON DELETE` rules ensure referential integrity:
 | `wallets` | `game_sessions` | `CASCADE` |
 | `ledger_entries` | `wallets` | `CASCADE` |
 | `ledger_entries.round_id` | `game_rounds` | `SET NULL` |
+
+## Integrity migration
+
+The `harden_game_integrity` migration installs ash-functions v7's `ash_required/2`
+and enforces one turn per `(round_id, index)` and one wallet per non-null session.
+It does not delete or merge existing records. If a deployment database already
+contains duplicate keys, reconcile those records before running the migration;
+PostgreSQL will reject the unique index rather than silently discard history.
+The rollback removes the indexes and retains the compatible Ash function.
+
+A committed turn refreshes both session and round activity timestamps, so cleanup
+uses gameplay activity rather than only the session's creation time.

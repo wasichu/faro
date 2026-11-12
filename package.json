@@ -1,0 +1,16 @@
+{
+  "name": "faro-assets",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "topbar": "3.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "daisyui": "5.7.50"
+  },
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report"
+  }
+}

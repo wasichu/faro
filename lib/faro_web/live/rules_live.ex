@@ -14,13 +14,14 @@ defmodule FaroWeb.RulesLive do
         <h2 class="font-serif text-xl font-semibold text-amber-300">The Deck & Setup</h2>
         <p class="text-stone-300 leading-relaxed">
           Faro is played with a standard 52-card deck. Before the round begins, the deck is
-          shuffled and one card is removed from play as the <strong class="text-amber-400">soda</strong>
+          shuffled and one card is removed from play as the
+          <strong class="text-amber-400">soda</strong>
           card. The soda card is revealed immediately and is not involved in bets.
         </p>
         <p class="text-stone-300 leading-relaxed">
           The remaining 51 cards produce 25 betting turns. On most turns, players place bets before the
-          dealer reveals two cards: the <strong class="text-amber-400">banker card</strong> and the 
-          <strong class="text-amber-400">player card</strong>.
+          dealer reveals two cards: the <strong class="text-amber-400">banker card</strong>
+          and the <strong class="text-amber-400">player card</strong>.
           The final turn is different and uses the last three remaining cards.
         </p>
       </section>
@@ -34,15 +35,16 @@ defmodule FaroWeb.RulesLive do
           which wins for standard bets. Standard bets pay 1:1.
         </p>
         <p class="text-stone-300 leading-relaxed">
-          The other bet type is a <strong class="text-amber-400">copper</strong> bet,
+          The other bet type is a <strong class="text-amber-400">copper</strong>
+          bet,
           which reverses the meaning of the standard bet, i.e., the
-          <strong class="text-amber-400">banker card</strong> wins and the
-          <strong class="text-amber-400">player card</strong> loses.
+          <strong class="text-amber-400">banker card</strong>
+          wins and the <strong class="text-amber-400">player card</strong>
+          loses.
           Copper bets pay the same 1:1 as regular bets.
         </p>
         <p class="text-stone-300 leading-relaxed">
-          When only three cards remain, the game enters its final phase,
-          <strong class="text-amber-400">Call the Turn</strong>. Players may attempt to predict
+          When only three cards remain, the game enters its final phase, <strong class="text-amber-400">Call the Turn</strong>. Players may attempt to predict
           the exact order of the final three cards or skip the final bet entirely.
         </p>
       </section>
@@ -53,8 +55,8 @@ defmodule FaroWeb.RulesLive do
           The high card bar at the top of the layout accepts a bet on relative card value.
           The bet wins if the player card has a higher rank than the banker card, and loses
           if it is lower. Copper is supported; copper high
-          card bets win if the player card has a lower rank than the banker card. 
-          A doublet (same rank) is a push. 
+          card bets win if the player card has a lower rank than the banker card.
+          A doublet (same rank) is a push.
         </p>
       </section>
 
@@ -75,7 +77,7 @@ defmodule FaroWeb.RulesLive do
           When exactly three cards remain in the deck, the round enters the
           <strong class="text-amber-400">call-the-turn</strong>
           phase. Players predict the
-          exact order of the remaining three cards: 
+          exact order of the remaining three cards:
           which card is dealt as the banker card and which as the player card.
           The third card (the last one in the deck) is known the <strong class="text-amber-400">hock</strong>.
         </p>
