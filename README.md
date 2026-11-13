@@ -2,18 +2,18 @@
 
 A historically accurate Faro card-game simulator built with Phoenix LiveView and Ash Framework.
 
-Faro dominated American gambling halls for nearly a century. When honestly dealt it offered unusually favorable odds — a house edge derived almost entirely from doublets (when both revealed cards share a rank). This project recreates the game with a focus on transparency, auditability, and provably fair mechanics rather than modern casino design.
+Faro dominated American gambling halls for nearly a century. When honestly dealt it offered unusually favorable odds. Its house edge came almost entirely from doublets, when both revealed cards share a rank. This version lets you play the game, inspect each round, and verify its shuffle.
 
 **[Try Faro now](https://faro.slowinput.org)**
 
 ## Features
 
-- **Historically accurate rules** — copper bets, doublets, call-the-turn, high card bar, and the full casekeeper
-- **Provably fair shuffles** — HMAC-SHA256 counter-mode PRNG; server commits to a seed hash before the round and reveals it after, so every shuffle is independently verifiable
-- **Pure game engine** — `Faro.GameEngine` contains zero I/O, no process state, no Ash calls; every function is a pure data transformation
-- **Append-only ledger** — all FTC balance changes produce ledger entries; the cached settled balance is reconciled with their sum
-- **Audit transcripts** — one record per completed round, containing everything needed to reproduce the shuffle and verify every turn
-- **Background maintenance** — Oban jobs clean up abandoned sessions and rounds on a configurable schedule
+- **Historically accurate rules**: copper bets, doublets, call-the-turn, high card bar, and the full casekeeper
+- **Provably fair shuffles**: HMAC-SHA256 counter-mode PRNG; server commits to a seed hash before the round and reveals it after, so every shuffle is independently verifiable
+- **Pure game engine**: `Faro.GameEngine` contains zero I/O, no process state, no Ash calls; every function is a pure data transformation
+- **Append-only ledger**: all FTC balance changes produce ledger entries; the cached settled balance is reconciled with their sum
+- **Audit transcripts**: one record per completed round, containing everything needed to reproduce the shuffle and verify every turn
+- **Background maintenance**: Oban jobs clean up abandoned sessions and rounds on a configurable schedule
 
 FTC (Fake Token Currency) is used throughout v1. No real money, no payment processing.
 
@@ -148,13 +148,13 @@ The codebase is divided into strict layers with no reverse dependencies:
 ```
 FaroWeb → FaroGame, Accounts, Wallets, Audit
 FaroGame → GameEngine, Wallets, Audit
-GameEngine → (nothing — pure functions only)
+GameEngine → (pure functions only)
 ```
 
-**`Faro.GameEngine`** — pure Elixir modules: `Card`, `Deck`, `Shuffle`, `Fairness`, `Round`, `Turn`, `Bet`, `Settlement`, `Casekeeper`, `Audit`. No database, no processes, no randomness — callers supply seeds.
+**`Faro.GameEngine`**: pure Elixir modules: `Card`, `Deck`, `Shuffle`, `Fairness`, `Round`, `Turn`, `Bet`, `Settlement`, `Casekeeper`, `Audit`. No database, no processes, and no randomness. Callers supply seeds.
 
-**`Faro.FaroGame`** — Ash resources for game persistence (`GameSession`, `Round`, `Turn`, `Wallet`, `LedgerEntry`, `AuditRecord`). Coordinates lifecycle and calls the engine.
+**`Faro.FaroGame`**: Ash resources for game persistence (`GameSession`, `Round`, `Turn`, `Wallet`, `LedgerEntry`, `AuditRecord`). Coordinates lifecycle and calls the engine.
 
-**`FaroWeb`** — five LiveViews: Home, Play, Rules, Philosophy, Audit.
+**`FaroWeb`**: five LiveViews: Home, Play, Rules, Philosophy, Audit.
 
 For full details see [`docs/architecture.md`](docs/architecture.md), [`docs/schema.md`](docs/schema.md), and [`docs/operations.md`](docs/operations.md).

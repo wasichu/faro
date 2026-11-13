@@ -39,7 +39,7 @@ defmodule FaroWeb.OddsLive do
               <tr>
                 <td class="px-4 py-3">Neither card matches your rank</td>
                 <td class="px-4 py-3 text-right text-stone-400 font-semibold">0</td>
-                <td class="px-4 py-3 text-right text-stone-500">Push — stake returned</td>
+                <td class="px-4 py-3 text-right text-stone-500">Push; stake returned</td>
               </tr>
               <tr>
                 <td class="px-4 py-3">Both cards match your rank (doublet)</td>
@@ -104,8 +104,8 @@ defmodule FaroWeb.OddsLive do
         <h2 class="font-serif text-xl font-semibold text-amber-300">Call the Turn</h2>
         <p class="text-stone-300 leading-relaxed">
           When exactly three cards remain in the deck, players may predict the exact dealing
-          order of all three cards. The third card is the hock and is never dealt — only the
-          banker (first) and player (second) positions are active.
+          order of all three cards. The third card is the hock and is never dealt.
+          Bets are settled on the banker and player ranks in the first two positions.
         </p>
         <div class="rounded border border-stone-700 bg-stone-800 overflow-hidden">
           <table class="w-full text-sm text-stone-300">
@@ -132,7 +132,7 @@ defmodule FaroWeb.OddsLive do
               </tr>
               <tr>
                 <td class="px-4 py-3">All three same rank</td>
-                <td class="px-4 py-3 text-right text-stone-400">—</td>
+                <td class="px-4 py-3 text-right text-stone-400">N/A</td>
                 <td class="px-4 py-3 text-right text-stone-500">Void</td>
                 <td class="px-4 py-3 text-right text-stone-500">Stake returned</td>
               </tr>
@@ -140,10 +140,9 @@ defmodule FaroWeb.OddsLive do
           </table>
         </div>
         <p class="text-stone-400 text-sm">
-          The distinct-three-rank case (5 possible orderings, payout on 1) has historically
-          high house edge compared to the rest of the game. The cat-hop case (2 orderings,
-          payout on 1) is even worse. Most experienced faro players skipped or minimised
-          call-the-turn wagers for this reason.
+          Three different ranks have six possible orders, with one winning prediction.
+          A pair leaves three possible rank orders. Neither payout covers the true odds,
+          so both versions give the house a larger edge than standard rank bets.
         </p>
       </section>
 
@@ -152,8 +151,8 @@ defmodule FaroWeb.OddsLive do
         <p class="text-stone-300 leading-relaxed">
           On standard rank bets, the only house edge comes from doublets. The frequency of
           doublets is low and depends on the specific deck order each round. Historical
-          accounts often placed faro's effective house edge at under 2% on rank bets alone —
-          unusually competitive for a banking game of the era.
+          accounts often placed faro's effective house edge at under 2% on rank bets alone.
+          That was unusually low for a banking game of the era.
         </p>
         <p class="text-stone-300 leading-relaxed">
           The call-the-turn side bet carries a substantially higher edge and is optional.

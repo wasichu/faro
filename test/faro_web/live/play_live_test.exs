@@ -127,4 +127,107 @@ defmodule FaroWeb.PlayLiveTest do
     [turn] = FaroGame.list_turns_for_round!(round.id)
     assert [%{"amount" => 2500}] = turn.bets
   end
+
+  test "repeat can restore the last wagers after dealing without reserving twice", %{conn: conn} do
+    {:ok, view, _} = live(conn, ~p"/play")
+    assert has_element?(view, "#toggle-keep-bets[disabled][aria-pressed=false]")
+    view |> form("#bet-amount-form", %{amount: "2500"}) |> render_change()
+    render_click(view, "toggle_copper", %{})
+    render_click(view, "place_bet", %{"rank" => "1"})
+    render_click(view, "place_high_card_bet", %{})
+    view |> element("#deal-turn") |> render_click()
+    [round] = Ash.read!(FaroGame.Round)
+    [first] = FaroGame.list_turns_for_round!(round.id)
+    [wallet] = Ash.read!(Wallet)
+    entries = FaroGame.list_ledger_entries_for_wallet!(wallet.id)
+    refute has_element?(view, "#pending-bets")
+    refute has_element?(view, "#toggle-keep-bets[disabled]")
+
+    view |> element("#toggle-keep-bets") |> render_click()
+    assert has_element?(view, "#toggle-keep-bets[aria-pressed=true]")
+
+    assert view
+           |> element("#pending-bets")
+           |> render()
+           |> LazyHTML.from_fragment()
+           |> LazyHTML.query("li")
+           |> Enum.count() == 2
+
+    assert has_element?(
+             view,
+             "#available-balance",
+             FaroWeb.GameComponents.format_sats(wallet.balance_sats - 5000)
+           )
+
+    assert FaroGame.list_ledger_entries_for_wallet!(wallet.id) == entries
+    assert FaroGame.get_wallet!(wallet.id).balance_sats == wallet.balance_sats
+
+    for _ <- 1..2 do
+      view |> element("#toggle-keep-bets") |> render_click()
+      view |> element("#toggle-keep-bets") |> render_click()
+
+      assert has_element?(
+               view,
+               "#available-balance",
+               FaroWeb.GameComponents.format_sats(wallet.balance_sats - 5000)
+             )
+    end
+
+    for _ <- 1..3 do
+      view |> element("#deal-turn") |> render_click()
+      assert List.last(FaroGame.list_turns_for_round!(round.id)).bets == first.bets
+      assert has_element?(view, "#toggle-keep-bets[aria-pressed=true]")
+    end
+
+    view |> element("#toggle-keep-bets") |> render_click()
+    view |> element("#deal-turn") |> render_click()
+    assert List.last(FaroGame.list_turns_for_round!(round.id)).bets == first.bets
+    refute has_element?(view, "#pending-bets")
+    assert has_element?(view, "#toggle-keep-bets[aria-pressed=false]")
+    view |> element("#deal-turn") |> render_click()
+    assert List.last(FaroGame.list_turns_for_round!(round.id)).bets == []
+    refute has_element?(view, "#toggle-keep-bets[disabled]")
+  end
+
+  test "repeat stays enabled across Call the Turn and the next round", %{conn: conn} do
+    {:ok, view, _} = live(conn, ~p"/play")
+    render_click(view, "place_bet", %{"rank" => "1"})
+    view |> element("#deal-turn") |> render_click()
+    view |> element("#toggle-keep-bets") |> render_click()
+    for _ <- 1..23, do: view |> element("#deal-turn") |> render_click()
+    [round] = Ash.read!(FaroGame.Round)
+    refute has_element?(view, "#pending-bets")
+    render_click(view, "toggle_keep_bets", %{})
+    view |> element("#skip-ctt") |> render_click()
+    assert List.last(FaroGame.list_turns_for_round!(round.id)).bets == []
+    view |> element("#new-round") |> render_click()
+    assert has_element?(view, "#toggle-keep-bets[aria-pressed=true]")
+    assert has_element?(view, "#pending-bets li")
+    [wallet] = Ash.read!(Wallet)
+
+    assert has_element?(
+             view,
+             "#available-balance",
+             FaroWeb.GameComponents.format_sats(wallet.balance_sats - 1000)
+           )
+  end
+
+  test "restoring previous wagers requires funds for the whole set", %{conn: conn} do
+    {:ok, view, _} = live(conn, ~p"/play")
+    [round] = Ash.read!(FaroGame.Round)
+    [_, loser, winner | _] = round.shuffled_deck
+    other_rank = Enum.find(1..13, &(&1 not in [loser["rank"], winner["rank"]]))
+    view |> form("#bet-amount-form", %{amount: "500000"}) |> render_change()
+    render_click(view, "place_bet", %{"rank" => to_string(loser["rank"])})
+    render_click(view, "place_bet", %{"rank" => to_string(other_rank)})
+    view |> element("#deal-turn") |> render_click()
+    [wallet] = Ash.read!(Wallet)
+    assert wallet.balance_sats < 1_000_000
+    entries = FaroGame.list_ledger_entries_for_wallet!(wallet.id)
+    view |> element("#toggle-keep-bets") |> render_click()
+    assert has_element?(view, "#toggle-keep-bets[aria-pressed=false]")
+    assert has_element?(view, "#flash-error")
+    refute has_element?(view, "#pending-bets")
+    assert FaroGame.list_ledger_entries_for_wallet!(wallet.id) == entries
+  end
 end

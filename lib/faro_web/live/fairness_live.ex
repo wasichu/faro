@@ -10,7 +10,7 @@ defmodule FaroWeb.FairnessLive do
     <div class="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 space-y-10">
       <h1 class="font-serif text-3xl font-bold text-amber-400">Provably Fair</h1>
       <p class="text-stone-300 leading-relaxed text-lg">
-        Every shuffle is mathematically verifiable. No trust required.
+        After a round, you can reproduce the shuffle and check every card.
       </p>
 
       <section class="space-y-4">
@@ -21,9 +21,9 @@ defmodule FaroWeb.FairnessLive do
               1
             </span>
             <div>
-              <strong class="text-stone-100">Before the round</strong> — the server generates a
-              random 32-byte seed and publishes its SHA-256 hash (the commitment). You can
-              verify this hash before any cards are dealt.
+              <strong class="text-stone-100">Save the commitment.</strong> The server generates
+              32 random bytes and publishes their SHA-256 hash before play. Save this hash
+              so you can compare it with the revealed seed after the round.
             </div>
           </li>
           <li class="flex gap-4">
@@ -31,9 +31,9 @@ defmodule FaroWeb.FairnessLive do
               2
             </span>
             <div>
-              <strong class="text-stone-100">You provide a client seed</strong> — any string of
-              your choice, submitted before the round begins. This ensures the server cannot
-              predict your input when it generated its seed.
+              <strong class="text-stone-100">Choose a client seed.</strong> You can use the
+              generated value or enter your own before the first deal. Choosing your own
+              after saving the commitment adds an input the server did not choose.
             </div>
           </li>
           <li class="flex gap-4">
@@ -41,12 +41,12 @@ defmodule FaroWeb.FairnessLive do
               3
             </span>
             <div>
-              <strong class="text-stone-100">The shuffle seed is derived</strong>
-              — using
-              HMAC-SHA256 with the server seed as key and
+              <strong class="text-stone-100">Combine the inputs.</strong>
+              The shuffle seed is
+              derived using HMAC-SHA256 with the server seed as key and
               <code class="rounded bg-stone-800 px-1 text-amber-300">client_seed || nonce</code>
               as data.
-              Neither party alone controls the outcome.
+              Changing your client seed does not change the server commitment.
             </div>
           </li>
           <li class="flex gap-4">
@@ -54,9 +54,9 @@ defmodule FaroWeb.FairnessLive do
               4
             </span>
             <div>
-              <strong class="text-stone-100">After the round</strong> — the server reveals the
-              original seed. You verify SHA-256(seed) matches the commitment, re-derive the
-              shuffle, and confirm every card dealt matches the audit transcript.
+              <strong class="text-stone-100">Check the result.</strong> After the round, the
+              server reveals its seed. Check that its SHA-256 hash matches the commitment,
+              reproduce the shuffle, and compare the dealt cards with the audit transcript.
             </div>
           </li>
         </ol>
@@ -73,7 +73,8 @@ defmodule FaroWeb.FairnessLive do
         </div>
         <p class="text-stone-300 leading-relaxed">
           The 32-byte result is decoded as a big-endian unsigned integer and reduced modulo the
-          current range. The modulo bias is negligible — range ≤ 52, entropy = 2²⁵⁶.
+          current range. This introduces a negligible bias: the range is at most 52,
+          while each result has 2²⁵⁶ possible values.
         </p>
       </section>
 
@@ -102,7 +103,7 @@ defmodule FaroWeb.FairnessLive do
         <h2 class="font-serif text-xl font-semibold text-amber-300">Verify Yourself</h2>
         <p class="text-stone-300 leading-relaxed">
           After a round, you can copy the revealed server seed, your client seed, and nonce
-          from the audit panel and check them independently — here or using any
+          from the audit panel. Check them with the verifier below or use another
           HMAC-SHA256 and SHA-256 tool.
         </p>
         <div class="flex flex-wrap gap-3">

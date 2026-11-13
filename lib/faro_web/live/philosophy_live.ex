@@ -13,68 +13,40 @@ defmodule FaroWeb.PhilosophyLive do
       <section class="space-y-3">
         <h2 class="font-serif text-xl font-semibold text-amber-300">Why Faro?</h2>
         <p class="text-stone-300 leading-relaxed">
-          Faro dominated American gambling halls for nearly a century in part because, when
-          honestly dealt, it offered players unusually favorable odds for a banking game. The
-          banker’s primary mathematical advantage came from doublets: when both revealed cards
-          shared a rank and bets on that rank lost half their stake. Compared to most gambling
-          games of its era, Faro’s house edge was remarkably small, helping make it the game of
-          frontier saloons, miners, and professional gamblers alike.
+          Faro was a fixture of American gambling halls for nearly a century. Its rules are simple: choose a rank, watch two cards come out, and settle the bets. Doublets gave the banker an edge by taking half the stake on the matching rank.
         </p>
         <p class="text-stone-300 leading-relaxed">
-          Faro also turns out to be a surprisingly interesting technical problem. The game combines
-          deterministic shuffling, public auditability, stateful gameplay, card tracking, and
-          mathematically precise settlement rules in a way that maps naturally onto modern web
-          systems. Every round can be reproduced, verified, and replayed from its published shuffle
-          inputs and recorded actions.
-        </p>
-        <p class="text-stone-300 leading-relaxed">
-          This project is an attempt to preserve the feel of the original game while exploring
-          transparent systems design, provably fair mechanics, and historically grounded online play.
+          This version keeps the copper bets, casekeeper, and final Call the Turn wager. It also gives you something a saloon table could not: a record of each completed round that you can replay and check for yourself.
         </p>
       </section>
 
       <section class="space-y-3">
-        <h2 class="font-serif text-xl font-semibold text-amber-300">Transparent by Design</h2>
+        <h2 class="font-serif text-xl font-semibold text-amber-300">Checking the Deal</h2>
         <p class="text-stone-300 leading-relaxed">
-          Faro was one of the defining gambling games of the American frontier: fast, strategic,
-          and unusually fair when honestly dealt. This project recreates the game with a focus on
-          transparency, auditability, and historical atmosphere rather than modern casino mechanics.
+          The server publishes a hash of its secret seed before play. When the round ends, it reveals the seed. You can then reproduce the shuffle and compare every dealt card with the audit record.
         </p>
         <p class="text-stone-300 leading-relaxed">
-          Every round is generated from deterministic shuffling inputs that can be independently
-          verified after play. The server commits to a hidden seed before the round begins, then
-          reveals it afterward so the entire shuffle and deal can be reproduced exactly.
-        </p>
-        <p class="text-stone-300 leading-relaxed">
-          The current implementation uses FTC (fake test coins) so players can experience the full
-          betting flow, settlement logic, and verification system without risking real funds. The
-          focus is on preserving the feel of the game and exploring provably fair systems design
-          in a controlled environment.
+          All bets use FTC, or fake test coins. They have no cash value. You can try the game, follow the odds, and inspect the results without risking money.
         </p>
       </section>
 
       <section class="space-y-3">
-        <h2 class="font-serif text-xl font-semibold text-amber-300">Honesty Over House Edge</h2>
+        <h2 class="font-serif text-xl font-semibold text-amber-300">The Payouts</h2>
         <p class="text-stone-300 leading-relaxed">
-          The call-the-turn payout of 4:1 on a true 5:1 bet, and 1:1 on a true 2:1 cat-hop,
-          are the historical house payouts. We implement them exactly. The house edge on
-          call-the-turn is 16.67% and 33.33% respectively — higher than standard bets,
-          and we say so plainly.
+          Call the Turn pays 4:1 when three different ranks remain, even though the true odds are 5:1. With a pair, the payout is 1:1 against true odds of 2:1. Those payouts give the house an edge of about 16.7% and 33.3%, respectively.
         </p>
         <p class="text-stone-300 leading-relaxed">
-          Every audit transcript is publicly verifiable. The shuffle seed commitment is
-          published before play. We cannot change the cards after you bet.
-          That is the entire point.
+          Both are worse odds than standard rank bets. The final wager is optional, and the rules and payouts are there to read before you place it.
         </p>
       </section>
 
       <section class="space-y-3">
-        <h2 class="font-serif text-xl font-semibold text-amber-300">Pure Game Engine</h2>
+        <h2 class="font-serif text-xl font-semibold text-amber-300">How It Works</h2>
         <p class="text-stone-300 leading-relaxed">
-          The game logic lives in a pure Elixir module with no database calls, no process
-          state, and no side effects. Every function is a pure transformation of data.
-          This makes the engine independently testable, auditable, and provably correct
-          by property-based testing against the mathematical rules.
+          The rules run in a separate Elixir game engine. Give it the same deck and bets and it produces the same result, without reading a database or changing process state.
+        </p>
+        <p class="text-stone-300 leading-relaxed">
+          That makes it possible to test the settlement rules on their own and replay saved rounds to check the cards and payouts.
         </p>
       </section>
     </div>

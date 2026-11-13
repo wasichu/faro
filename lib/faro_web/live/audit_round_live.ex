@@ -343,7 +343,7 @@ defmodule FaroWeb.AuditRoundLive do
 
   defp bet_list(%{bets: []} = assigns) do
     ~H"""
-    <span class="text-stone-600">—</span>
+    <span class="text-stone-600">None</span>
     """
   end
 
@@ -361,7 +361,7 @@ defmodule FaroWeb.AuditRoundLive do
 
   defp settlement_summary(%{settlements: []} = assigns) do
     ~H"""
-    <span class="text-stone-600">—</span>
+    <span class="text-stone-600">None</span>
     """
   end
 

@@ -224,7 +224,19 @@ defmodule FaroWeb.PlayLive do
 
     case FaroGame.deal_game_turn(params) do
       {:ok, result} ->
-        {restored_bets, balance} = repeat_bets(result, assigns.keep_bets?)
+        last_bets =
+          case {assigns.round.phase, result.turn.bets} do
+            {:dealing, [_ | _] = bets} -> bets
+            _ -> assigns.last_bets
+          end
+
+        {restored_bets, balance} =
+          repeat_bets(
+            result.round.phase,
+            assigns.keep_bets?,
+            last_bets,
+            result.wallet.balance_sats
+          )
 
         slots =
           if result.round.phase == :call_the_turn, do: [nil, nil, nil], else: assigns.ctt_slots
@@ -237,12 +249,15 @@ defmodule FaroWeb.PlayLive do
            pending_bets: restored_bets,
            last_turn: result.turn,
            last_settlements: result.turn.settlements,
-           keep_bets?: assigns.keep_bets? and result.round.phase == :dealing,
+           keep_bets?: assigns.keep_bets?,
+           last_bets: last_bets,
            audit: result.audit,
            ctt_slots: slots,
            ctt_selected: nil,
            ctt_placed_bet: nil
-         )}
+         )
+         |> clear_flash(:error)
+         |> maybe_repeat_notice()}
 
       {:error, _error} ->
         Logger.warning("Game turn transaction failed")
@@ -256,9 +271,36 @@ defmodule FaroWeb.PlayLive do
     end
   end
 
-  def handle_event("toggle_keep_bets", _params, socket) do
-    {:noreply, assign(socket, keep_bets?: !socket.assigns.keep_bets?)}
+  def handle_event("toggle_keep_bets", _params, %{assigns: %{round: %{phase: phase}}} = socket)
+      when phase != :dealing,
+      do: {:noreply, socket}
+
+  def handle_event("toggle_keep_bets", _params, %{assigns: %{keep_bets?: true}} = socket) do
+    {:noreply, socket |> assign(keep_bets?: false) |> clear_flash(:error)}
   end
+
+  def handle_event("toggle_keep_bets", _params, %{assigns: %{pending_bets: [_ | _]}} = socket) do
+    {:noreply, socket |> assign(keep_bets?: true) |> clear_flash(:error)}
+  end
+
+  def handle_event(
+        "toggle_keep_bets",
+        _params,
+        %{assigns: %{last_bets: [_ | _] = bets, balance: balance}} = socket
+      ) do
+    case reserve_bets(bets, balance) do
+      {[], _} ->
+        {:noreply, put_flash(socket, :error, "Not enough balance to repeat those bets.")}
+
+      {bets, balance} ->
+        {:noreply,
+         socket
+         |> assign(keep_bets?: true, pending_bets: bets, balance: balance)
+         |> clear_flash(:error)}
+    end
+  end
+
+  def handle_event("toggle_keep_bets", _params, socket), do: {:noreply, socket}
 
   def handle_event("new_round", _params, socket) do
     if socket.assigns.round.phase == :finished do
@@ -331,7 +373,7 @@ defmodule FaroWeb.PlayLive do
       |> assign(:recent_turns, assigns.round.turns |> Enum.take(-5) |> Enum.reverse())
       |> assign(
         :repeat_disabled,
-        assigns.pending_bets == [] and not assigns.keep_bets?
+        assigns.pending_bets == [] and assigns.last_bets == [] and not assigns.keep_bets?
       )
       |> assign(
         :ctt_bets,
@@ -396,7 +438,7 @@ defmodule FaroWeb.PlayLive do
               ?
             </button>
           </div>
-          <div class="flex items-center gap-3">
+          <div id="available-balance" class="flex items-center gap-3">
             <.balance_display balance_sats={@balance} />
           </div>
         </div>
@@ -504,7 +546,7 @@ defmodule FaroWeb.PlayLive do
           <div class="rounded-lg border border-amber-600 bg-amber-950/30 p-4 space-y-5">
             <div>
               <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">
-                Call the Turn — Final Three Cards
+                Call the Turn: Final Three Cards
               </h3>
               <p class="mt-1 text-xs text-stone-400">
                 Click a card to select it, then click a slot to place it. Predict the exact order to win 4:1; two of a kind pays 1:1. Leave slots empty to deal without betting.
@@ -695,6 +737,13 @@ defmodule FaroWeb.PlayLive do
                     id="toggle-keep-bets"
                     phx-click="toggle_keep_bets"
                     disabled={@repeat_disabled}
+                    aria-pressed={to_string(@keep_bets?)}
+                    title={
+                      if @keep_bets?,
+                        do: "Stop repeating future bets; placed wagers remain for this turn.",
+                        else:
+                          "Keep repeating your current or previous wagers until you turn this off."
+                    }
                     class={[
                       "rounded border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
                       cond do
@@ -887,7 +936,7 @@ defmodule FaroWeb.PlayLive do
               <%= if @pending_bets != [] and @round.phase == :dealing do %>
                 <div class="space-y-1.5">
                   <div class="text-[10px] uppercase tracking-widest text-stone-500">Next Turn</div>
-                  <ul class="space-y-1.5">
+                  <ul id="pending-bets" class="space-y-1.5">
                     <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
                       <li class="flex items-center justify-between text-sm">
                         <span class="text-stone-300">{pending_bet_label(bet)}</span>
@@ -954,7 +1003,7 @@ defmodule FaroWeb.PlayLive do
               </ul>
             <% else %>
               <%!-- Pre-deal: pending bets only --%>
-              <ul class="space-y-1.5">
+              <ul id="pending-bets" class="space-y-1.5">
                 <%= for {bet, idx} <- Enum.with_index(@pending_bets) do %>
                   <li class="flex items-center justify-between text-sm">
                     <span class="text-stone-300">{pending_bet_label(bet)}</span>
@@ -979,7 +1028,7 @@ defmodule FaroWeb.PlayLive do
         <%= if @round.phase == :finished and @ctt_bets != [] do %>
           <div class="rounded-lg border border-amber-600/40 bg-stone-900 p-4 space-y-4">
             <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400">
-              Call the Turn — Result
+              Call the Turn Result
             </h3>
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1071,34 +1120,37 @@ defmodule FaroWeb.PlayLive do
         </div>
         <div class="overflow-y-auto px-5 py-4 space-y-5 text-sm">
           <.glossary_entry term="Shuffle Verification">
-            A SHA-256 hash of the server seed, published before any cards are dealt. After the round the server reveals its seed — you can hash it yourself to confirm it matches, proving the shuffle was pre-committed and never changed.
+            The SHA-256 hash of the server seed, published before play. Save it before you bet. When the round ends, hash the revealed seed and compare it with this value to check that the server kept its commitment.
           </.glossary_entry>
           <.glossary_entry term="Client Seed">
-            Your contribution to the shuffle. You can type any value you like before the first card is dealt — the box shows your raw input. What actually drives the card order is the Shuffle Seed, a value derived by running your seed through HMAC-SHA256 together with the server seed and a round counter (nonce). So what you type and what the shuffle uses are related but not the same number. The nonce is not secret — it starts at 1 and increments with each new round, and is shown alongside the other audit values at the end of every round. Because both you and the server contribute, neither party alone controls the outcome.
+            Your part of the shuffle. Use the generated value or enter your own before the first deal. It is combined with the server seed and nonce to determine the card order. Changing it keeps the same server commitment.
           </.glossary_entry>
           <.glossary_entry term="Server Seed">
-            A secret 32-byte random value generated by the server before the round begins. Kept hidden during play, then revealed at the end so the shuffle can be independently verified.
+            A secret value of 32 random bytes, generated by the server for each round. It stays hidden during play and is revealed when the round ends.
           </.glossary_entry>
           <.glossary_entry term="Shuffle Seed">
-            The 32-byte value derived from server seed, client seed, and nonce using HMAC-SHA256. It directly drives the Fisher-Yates shuffle algorithm to produce the deck order.
+            The value that determines the card order. HMAC-SHA256 derives it from the server seed, client seed, and nonce. You can reproduce it after the server seed is revealed.
           </.glossary_entry>
           <.glossary_entry term="Nonce">
-            A round counter that increments with each new round. Ensures a unique shuffle even if the same client seed is reused across rounds.
+            The round counter. It starts at 1 and increases with each new round in the same session. It is included in the audit so you can reproduce the shuffle.
           </.glossary_entry>
           <.glossary_entry term="Soda">
-            The first card burned from the top of the deck at the start of each round. Shown face-up and counted in the casekeeper, but no bets are settled on the soda card.
+            The first card removed from the deck at the start of a round. It is shown face up and counted in the casekeeper, but no bets are settled on it.
           </.glossary_entry>
           <.glossary_entry term="Hock">
-            The last card remaining after all 25 turns are dealt. It is revealed but never dealt — no bets settle on the hock.
+            The last card left after all 25 turns. It is revealed after the final deal, but no bets are settled on it.
           </.glossary_entry>
           <.glossary_entry term="Doublet (Split)">
-            When both cards in a turn share the same rank. Any bet on that rank loses half its stake to the house; the other half is returned. The copper flag does not affect a split.
+            Two cards of the same rank in one turn. A bet on that rank loses half its stake, whether or not it is coppered. For an odd stake, the house takes the smaller whole number of tokens.
           </.glossary_entry>
           <.glossary_entry term="Copper">
-            A marker placed on a bet to reverse it. A coppered bet wins when its rank appears as the banker card and loses when it appears as the player card — the opposite of a plain bet.
+            A marker that reverses a bet. A coppered rank bet wins on the banker card and loses on the player card. It does not change the doublet rule.
+          </.glossary_entry>
+          <.glossary_entry term="Repeat Bets">
+            Reuses your latest regular wagers at the same amounts and copper settings. Turn it on before or after a deal. It stays on until you switch it off, pausing for Call the Turn or when you cannot cover the full stake. Turning it off leaves any wagers already placed for the current turn.
           </.glossary_entry>
           <.glossary_entry term="Call the Turn">
-            The final bet, placed when exactly three cards remain. Players predict the exact order of banker and player cards. Correct prediction on three distinct ranks pays 4:1; a cat-hop (two of a kind) pays 1:1.
+            The optional final bet, made when three cards remain. Predict the banker and player ranks in order. A correct call pays 4:1 when all three ranks differ, or 1:1 when two share a rank.
           </.glossary_entry>
         </div>
       </div>
@@ -1157,6 +1209,7 @@ defmodule FaroWeb.PlayLive do
         bet_amount: @default_bet,
         copper?: false,
         keep_bets?: Map.get(socket.assigns, :keep_bets?, false),
+        last_bets: Map.get(socket.assigns, :last_bets, []),
         ctt_slots: [nil, nil, nil],
         ctt_selected: nil,
         ctt_amount: @default_bet,
@@ -1168,7 +1221,17 @@ defmodule FaroWeb.PlayLive do
 
     case persistence do
       {:ok, state} ->
-        assign(socket, state)
+        socket = assign(socket, state)
+
+        {bets, balance} =
+          repeat_bets(
+            round.phase,
+            socket.assigns.keep_bets?,
+            socket.assigns.last_bets,
+            balance
+          )
+
+        socket |> assign(pending_bets: bets, balance: balance) |> maybe_repeat_notice()
 
       {:error, _} ->
         Logger.warning("Game startup transaction failed")
@@ -1214,16 +1277,28 @@ defmodule FaroWeb.PlayLive do
     end
   end
 
-  defp repeat_bets(%{round: %{phase: :dealing}, turn: turn, wallet: wallet}, true) do
-    {bets, balance} =
-      Enum.reduce(turn.bets, {[], wallet.balance_sats}, fn bet, {bets, balance} ->
-        if bet.amount <= balance, do: {[bet | bets], balance - bet.amount}, else: {bets, balance}
-      end)
+  defp repeat_bets(:dealing, true, bets, balance), do: reserve_bets(bets, balance)
+  defp repeat_bets(_phase, _keep?, _bets, balance), do: {[], balance}
 
-    {Enum.reverse(bets), balance}
+  defp reserve_bets(bets, balance) do
+    total = Enum.sum(Enum.map(bets, & &1.amount))
+    if total <= balance, do: {bets, balance - total}, else: {[], balance}
   end
 
-  defp repeat_bets(result, _keep?), do: {[], result.wallet.balance_sats}
+  defp maybe_repeat_notice(
+         %{
+           assigns: %{
+             keep_bets?: true,
+             round: %{phase: :dealing},
+             last_bets: [_ | _],
+             pending_bets: []
+           }
+         } = socket
+       ) do
+    put_flash(socket, :error, "Repeat Bets is paused: not enough balance for those wagers.")
+  end
+
+  defp maybe_repeat_notice(socket), do: socket
 
   defp refunded_balance(socket) do
     socket.assigns.balance + Enum.sum(Enum.map(socket.assigns.pending_bets, & &1.amount))

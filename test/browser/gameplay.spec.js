@@ -19,11 +19,16 @@ test("plays a round and independently verifies the saved audit", async ({page}, 
   await page.locator('#bet-amount-form input').fill('2500');
   await page.locator('[phx-click="place_bet"][phx-value-rank="1"]:visible').click();
   await expect(page.locator('#game-table')).toContainText('2,500 sats');
+  await page.locator('#deal-turn').click();
+  await expect(page.locator('#game-table')).toContainText(/Turn\s+2\s*\/\s*25/);
+  await expect(page.locator('#pending-bets')).toHaveCount(0);
+  await expect(page.locator('#toggle-keep-bets')).toBeEnabled();
   await page.locator('#toggle-keep-bets').click();
-  await expect(page.locator('#toggle-keep-bets')).toContainText('Repeating Bets');
+  await expect(page.locator('#toggle-keep-bets')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#pending-bets')).toContainText('2,500 sats');
   await page.screenshot({path:testInfo.outputPath("gameplay.png"),fullPage:true});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth),`${name} horizontal overflow`);
-  for(let index=1; index<=24; index++){
+  for(let index=2; index<=24; index++){
     await page.locator('#deal-turn').click();
     await expect(page.locator('#game-table')).toContainText(new RegExp(`Turn\\s+${index+1}\\s*/\\s*25`));
     if(index===3){
@@ -65,4 +70,23 @@ test("plays a round and independently verifies the saved audit", async ({page}, 
   await page.getByRole('button',{name:'Verify Shuffle',exact:true}).click();
   await expect(page.locator('#verification-error')).toBeVisible();
   assert.deepEqual(errors,[]);
+})
+
+
+test("glossary and information pages use plain punctuation", async ({page}, testInfo) => {
+  for (const route of ["/", "/rules", "/odds", "/fairness", "/philosophy", "/audit/shuffle"]) {
+    await page.goto(route)
+    await page.waitForSelector(".phx-connected")
+    await expect(page.locator("body")).not.toContainText(/[—–]/)
+    if (route === "/philosophy") {
+      await page.screenshot({path: testInfo.outputPath("about.png"), fullPage: true})
+    }
+  }
+  await page.goto("/play")
+  await page.waitForSelector(".phx-connected")
+  await page.getByRole("button", {name: "What are these? →", exact: true}).click()
+  await expect(page.locator("#glossary-modal")).toBeVisible()
+  await expect(page.locator("#glossary-modal")).not.toContainText(/[—–]/)
+  await expect(page.locator("#glossary-modal")).toContainText("Repeat Bets")
+  await page.screenshot({path: testInfo.outputPath("glossary.png"), fullPage: true})
 })

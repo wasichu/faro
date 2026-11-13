@@ -5,7 +5,10 @@ defmodule Faro.Audit.Verification do
   alias Faro.GameEngine.{Audit, Fairness}
 
   def verify(%{status: status}, _turns) when status != :finished do
-    %{status: :incomplete, message: "Round not yet finished — server seed has not been revealed."}
+    %{
+      status: :incomplete,
+      message: "The round has not finished. Its server seed is still hidden."
+    }
   end
 
   def verify(%{server_seed: nil}, _turns) do

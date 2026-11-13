@@ -75,14 +75,16 @@ defmodule FaroWeb.AuditShuffleLive do
       {:seed, _} ->
         {:noreply,
          assign(socket,
-           error:
-             "Invalid server seed — must be a valid hex string (64 hex characters for a 32-byte seed).",
+           error: "Enter a valid server seed: 64 hexadecimal characters representing 32 bytes.",
            result: nil
          )}
 
       {:nonce, _} ->
         {:noreply,
-         assign(socket, error: "Invalid nonce — must be an unsigned 64-bit integer.", result: nil)}
+         assign(socket,
+           error: "Enter a nonce that is a whole number from 0 to 18446744073709551615.",
+           result: nil
+         )}
     end
   end
 
@@ -113,7 +115,7 @@ defmodule FaroWeb.AuditShuffleLive do
         <h1 class="font-serif text-3xl font-bold text-amber-400">Manual Shuffle Verifier</h1>
         <p class="mt-2 text-stone-400 leading-relaxed">
           Enter the seeds from any completed round to independently reproduce the shuffle
-          and verify the card order — without trusting this server.
+          and compare the result with the recorded card order.
         </p>
       </div>
 
@@ -142,7 +144,7 @@ defmodule FaroWeb.AuditShuffleLive do
           <div class="space-y-1">
             <label class="block text-xs font-semibold uppercase tracking-widest text-stone-400">
               Server Seed Hash / Commitment
-              <span class="text-stone-600 normal-case">(optional — for hash verification)</span>
+              <span class="text-stone-600 normal-case">(optional, for hash verification)</span>
             </label>
             <.input
               type="text"
@@ -224,12 +226,12 @@ defmodule FaroWeb.AuditShuffleLive do
                   label="Server seed hash"
                   ok={@result.hash_ok}
                   pass_text="SHA-256(server_seed) matches commitment"
-                  fail_text="Hash mismatch — server seed does not match commitment"
+                  fail_text="Hash mismatch: the server seed does not match the commitment"
                 />
               <% else %>
                 <div class="flex items-center gap-3 text-sm">
                   <span class="rounded bg-stone-700 px-2 py-0.5 text-xs font-semibold text-stone-400">
-                    —
+                    Not checked
                   </span>
                   <span class="text-stone-400">Hash check skipped (no commitment provided)</span>
                 </div>
@@ -246,7 +248,7 @@ defmodule FaroWeb.AuditShuffleLive do
           <%!-- Soda card --%>
           <div class="space-y-2">
             <h2 class="text-sm font-bold uppercase tracking-widest text-amber-400">Soda Card</h2>
-            <p class="text-xs text-stone-500">Burned first card — counted but never bet on.</p>
+            <p class="text-xs text-stone-500">The first card is counted but never bet on.</p>
             <div class="w-fit">
               <GameComponents.playing_card rank={@result.soda.rank} suit={@result.soda.suit} />
             </div>
@@ -285,7 +287,7 @@ defmodule FaroWeb.AuditShuffleLive do
                         <%= if turn.loser.rank == turn.winner.rank do %>
                           <span class="text-xs font-semibold text-amber-400">Split</span>
                         <% else %>
-                          <span class="text-xs text-stone-600">—</span>
+                          <span class="text-xs text-stone-600">None</span>
                         <% end %>
                       </td>
                     </tr>
@@ -331,7 +333,7 @@ defmodule FaroWeb.AuditShuffleLive do
               Full Shuffled Deck (52 cards)
             </h2>
             <p class="text-xs text-stone-500">
-              Position 0 = soda. Positions 1–50 are dealt as 25 turns (odd = banker, even = player). Position 51 = hock.
+              Position 0 = soda. Positions 1 to 50 are dealt as 25 turns (odd = banker, even = player). Position 51 = hock.
             </p>
             <div class="rounded border border-stone-700 bg-stone-800 p-3 font-mono text-xs grid grid-cols-13 gap-1">
               <%= for {card, idx} <- Enum.with_index(@result.deck) do %>

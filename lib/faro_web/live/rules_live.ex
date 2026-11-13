@@ -65,8 +65,7 @@ defmodule FaroWeb.RulesLive do
         <p class="text-stone-300 leading-relaxed">
           When both cards in a turn share the same rank, it is a
           <strong class="text-amber-400">doublet</strong>
-          or split. Any bet on that rank loses half its stake to the house — the remainder is
-          returned. The copper flag does not affect a split; it always costs half.
+          or split. Any bet on that rank loses half its stake to the house. The remainder is returned. The copper flag does not affect a split; it always costs half.
           Bets on other ranks push.
         </p>
       </section>
@@ -79,7 +78,7 @@ defmodule FaroWeb.RulesLive do
           phase. Players predict the
           exact order of the remaining three cards:
           which card is dealt as the banker card and which as the player card.
-          The third card (the last one in the deck) is known the <strong class="text-amber-400">hock</strong>.
+          The third card (the last one in the deck) is known as the <strong class="text-amber-400">hock</strong>.
         </p>
         <div class="rounded border border-stone-700 bg-stone-800 p-4 space-y-2 text-sm text-stone-300">
           <div class="flex justify-between">
@@ -92,7 +91,7 @@ defmodule FaroWeb.RulesLive do
           </div>
           <div class="flex justify-between">
             <span>All three same rank</span>
-            <span class="text-stone-500">Void — stake returned</span>
+            <span class="text-stone-500">Void; stake returned</span>
           </div>
         </div>
       </section>

@@ -53,16 +53,16 @@ defmodule FaroWeb.HomeLive do
           <div class="mb-3 text-3xl">🎴</div>
           <h3 class="font-serif text-lg font-semibold text-amber-400">Historically Accurate</h3>
           <p class="mt-2 text-sm text-stone-400 leading-relaxed">
-            Authentic Faro rules including copper bets, doublets, call-the-turn, and the
-            high card bar — exactly as dealt in frontier saloons.
+            Play with copper bets, doublets, Call the Turn, and the high card bar.
+            The casekeeper tracks the cards as they leave the deck.
           </p>
         </div>
         <div class="rounded-lg border border-stone-700 bg-stone-800 p-6 text-center">
           <div class="mb-3 text-3xl">🔐</div>
           <h3 class="font-serif text-lg font-semibold text-amber-400">Provably Fair</h3>
           <p class="mt-2 text-sm text-stone-400 leading-relaxed">
-            Every shuffle is verifiable. Server seed commitment published before play,
-            revealed after. HMAC-SHA256 counter-mode PRNG. Nothing hidden.
+            Save the seed commitment before play. When the round ends, use the
+            revealed seed to reproduce the shuffle and check the cards.
           </p>
         </div>
         <div class="rounded-lg border border-stone-700 bg-stone-800 p-6 text-center">
