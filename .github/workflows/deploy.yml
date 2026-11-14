@@ -1,0 +1,57 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      checks: read
+    steps:
+      - name: Require successful CI for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ci_run=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --event push \
+            --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$ci_run" ]; then
+            echo "::error::No push CI run found for $GITHUB_SHA. Push this commit and rerun deployment after CI starts."
+            exit 1
+          fi
+          gh run watch "$ci_run" --exit-status --interval 10
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://faro-amefvg.fly.dev
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: superfly/flyctl-actions/setup-flyctl@98172f70657cb3e15db199af139be99bd3e61200
+        with:
+          version: 0.5.10
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Configure the FLY_API_TOKEN secret before deploying."
+            exit 1
+          fi
+          flyctl deploy --app faro-amefvg --remote-only \
+            --image-label "git-$GITHUB_SHA" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA"

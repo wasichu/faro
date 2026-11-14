@@ -1,5 +1,30 @@
 # Faro — Operations
 
+## Production deployment
+
+Use **Actions → Deploy production → Run workflow**, selecting `main`. The workflow
+waits for successful push CI for that exact commit, then deploys to
+`faro-amefvg`. Production deployments run one at a time and are not cancelled by
+new CI runs. Deploying another branch is skipped.
+
+The deployment job uses GitHub's `production` environment, so GitHub records its
+commit, app URL, and success/failure status automatically. Fly images carry the
+`git-<full commit SHA>` tag and the `org.opencontainers.image.revision` label.
+Direct terminal deployments bypass this reporting; use the workflow to keep
+GitHub's production history current.
+
+The workflow requires a `FLY_API_TOKEN` Actions secret scoped to `faro-amefvg`.
+Create or rotate it without printing the credential:
+
+```sh
+set -o pipefail
+flyctl tokens create deploy --app faro-amefvg --name github-actions-production --expiry 2160h |
+  gh secret set FLY_API_TOKEN --repo wasichu/faro
+```
+
+This token expires after 90 days; rotate it before expiry. The workflow and
+flyctl versions are pinned in `.github/workflows/deploy.yml`.
+
 ## Background Jobs (Oban)
 
 Faro uses [Oban](https://github.com/sorentwo/oban) for background job processing, configured via `AshOban`. All jobs are registered through the `ash_domains` list in `application.ex`.
